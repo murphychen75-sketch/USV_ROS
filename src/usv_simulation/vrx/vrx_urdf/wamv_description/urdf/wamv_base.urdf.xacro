@@ -98,10 +98,10 @@
   <link name="${namespace}/base_link">
     <visual>
       <geometry>
-        <mesh filename="package://wamv_description/models/WAM-V-Base/mesh/M5_body.dae"/>
+        <mesh filename="package://wamv_description/models/WAM-V-Base/mesh/WAM-V-Base.dae"/>
       </geometry>
     </visual>
-    <!-- <mesh filename="package://wamv_description/models/WAM-V-Base/mesh/WAM-V-Base.dae"/> -->
+    <!-- <mesh filename="package://wamv_description/models/WAM-V-Base/mesh/blade_R.dae"/> -->
 <!-- src/my_wamv/blade_R.dae -->
     <!-- Left base collisions -->
     <xacro:main_collisions prefix="left" reflect="1" />

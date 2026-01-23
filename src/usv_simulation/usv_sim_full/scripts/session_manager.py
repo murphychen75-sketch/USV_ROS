@@ -34,11 +34,13 @@ def create_session(config_path):
     # 获取当前时间戳
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    # 获取脚本所在目录的父目录（包目录）
-    package_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # 使用当前工作目录作为项目根目录
+    project_root = os.getcwd()  # 获取当前工作目录（运行launch文件的目录）
+    logs_dir = os.path.join(project_root, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
     
     # 创建会话日志目录
-    session_dir = os.path.join(package_dir, "logs", f"session_{timestamp}")
+    session_dir = os.path.join(logs_dir, f"session_{timestamp}")
     os.makedirs(session_dir, exist_ok=True)
     
     # 复制用户配置到会话目录

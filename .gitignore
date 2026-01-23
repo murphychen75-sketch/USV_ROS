@@ -158,3 +158,40 @@ src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/downloads/
 *.log
 gz_server*.log
 gz_client*.log
+
+# 仿真相关
+*.dae
+*.obj
+*.stl
+*.fbx
+*.blend
+*.urdf
+*.sdf
+*.world
+*.config
+*.yaml
+*.yml
+*.xml
+*.xacro
+*.sdf.jinja
+*.urdf.xacro
+
+# 仿真环境
+**/logs/
+logs/
+
+# 模型相关
+**/models/generated/
+**/models/temp/
+**/models/downloads/
+**/models/assets/
+**/models/original/
+**/models/core/
+
+# 日志文件
+*.log
+*.bag
+*.csv
+*.db3
+*.sqlite
+*.sqlite3
