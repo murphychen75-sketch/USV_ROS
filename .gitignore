@@ -1,0 +1,160 @@
+# ROS and ROS2 specific files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.dylib
+*.dll
+*.swp
+*.swo
+
+# Build and installation directories (common in ROS projects)
+/build/
+/install/
+/log/
+
+# Debris files
+*.orig
+*~
+.DS_Store
+
+# Python specific
+*.egg-info/
+dist/
+*.egg
+pip-log.txt
+.tox/
+.coverage
+htmlcov/
+.pytest_cache/
+.nox/
+
+# C++ specific
+*.o
+*.a
+*.so
+*.dll
+*.dylib
+*.cmake
+Makefile
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+
+# ROS workspace build artifacts
+/devel/
+/install/
+/build/
+*.log
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Simulation specific (based on your project structure)
+# Keep manually maintained core models in all model locations
+!src/usv_simulation/usv_sim_full/models/assets/
+!src/usv_simulation/usv_sim_full/models/original/
+!src/usv_simulation/usv_sim_full/models/core/
+!src/usv_simulation/vrx/vrx_gz/models/assets/
+!src/usv_simulation/vrx/vrx_gz/models/original/
+!src/usv_simulation/vrx/vrx_gz/models/core/
+!src/usv_simulation/vrx/vrx_urdf/wamv_description/models/assets/
+!src/usv_simulation/vrx/vrx_urdf/wamv_description/models/original/
+!src/usv_simulation/vrx/vrx_urdf/wamv_description/models/core/
+!src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/assets/
+!src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/original/
+!src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/core/
+
+# Ignore auto-generated models and temporary files in all model locations
+**/models/*/meshes/tmp_*/
+**/models/*/meshes/generated_*/
+**/models/*/meshes/temp_*/
+**/models/*/meshes/output_*/
+**/models/*/meshes/cache_*/
+
+# Ignore processed models in specific subdirectories in all model locations
+src/usv_simulation/usv_sim_full/models/generated/
+src/usv_simulation/usv_sim_full/models/processed/
+src/usv_simulation/usv_sim_full/models/temp/
+src/usv_simulation/usv_sim_full/models/downloads/
+src/usv_simulation/vrx/vrx_gz/models/generated/
+src/usv_simulation/vrx/vrx_gz/models/processed/
+src/usv_simulation/vrx/vrx_gz/models/temp/
+src/usv_simulation/vrx/vrx_gz/models/downloads/
+src/usv_simulation/vrx/vrx_urdf/wamv_description/models/generated/
+src/usv_simulation/vrx/vrx_urdf/wamv_description/models/processed/
+src/usv_simulation/vrx/vrx_urdf/wamv_description/models/temp/
+src/usv_simulation/vrx/vrx_urdf/wamv_description/models/downloads/
+src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/generated/
+src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/processed/
+src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/temp/
+src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/downloads/
+
+# VRX related (if you use VRX)
+**/vrx/docker/vrx_ws/
+**/vrx/build/
+**/vrx/install/
+
+# Simulation files that are auto-generated
+*.dae  # 如果是自动生成的DAE文件，手动维护的URDF/SDF不应忽略
+*.stl  # 如果是临时生成的STL文件
+
+# Keep manually maintained URDF/SDF files in core directories
+!src/usv_simulation/usv_sim_full/models/assets/**/*.urdf
+!src/usv_simulation/usv_sim_full/models/assets/**/*.sdf
+!src/usv_simulation/usv_sim_full/models/original/**/*.urdf
+!src/usv_simulation/usv_sim_full/models/original/**/*.sdf
+!src/usv_simulation/usv_sim_full/models/core/**/*.urdf
+!src/usv_simulation/usv_sim_full/models/core/**/*.sdf
+!src/usv_simulation/vrx/vrx_gz/models/assets/**/*.urdf
+!src/usv_simulation/vrx/vrx_gz/models/assets/**/*.sdf
+!src/usv_simulation/vrx/vrx_gz/models/original/**/*.urdf
+!src/usv_simulation/vrx/vrx_gz/models/original/**/*.sdf
+!src/usv_simulation/vrx/vrx_gz/models/core/**/*.urdf
+!src/usv_simulation/vrx/vrx_gz/models/core/**/*.sdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_description/models/assets/**/*.urdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_description/models/assets/**/*.sdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_description/models/original/**/*.urdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_description/models/original/**/*.sdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_description/models/core/**/*.urdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_description/models/core/**/*.sdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/assets/**/*.urdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/assets/**/*.sdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/original/**/*.urdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/original/**/*.sdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/core/**/*.urdf
+!src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/core/**/*.sdf
+
+# User specific files
+*.ini
+*.yaml  # 配置文件，如果包含敏感信息
+*.config
+
+# Session files
+.session
+.sessions/
+
+# Editor backup files
+*~
+\#*\#
+
+# Log files for simulators
+*.log
+gz_server*.log
+gz_client*.log
