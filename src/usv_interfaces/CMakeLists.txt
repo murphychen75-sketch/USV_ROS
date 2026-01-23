@@ -9,6 +9,7 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED) # 新增
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED) # 新增
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
@@ -36,22 +37,22 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   ${MSG_FILES}
   ${SRV_FILES}
   ${ACTION_FILES}
-  DEPENDENCIES std_msgs geometry_msgs builtin_interfaces
+  DEPENDENCIES std_msgs geometry_msgs nav_msgs builtin_interfaces
 )
 
-# 1. 安装 C++ 头文件 (用于 C++ 节点引用常量)
-install(DIRECTORY include/
-  DESTINATION include
-)
+# # 1. 安装 C++ 头文件 (用于 C++ 节点引用常量)
+# install(DIRECTORY include/
+#   DESTINATION include
+# )
 
-# 2. 安装 Python 模块 (用于 Python 节点引用常量)
-ament_python_install_package(${PROJECT_NAME})
-install(DIRECTORY ${PROJECT_NAME}
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_DIR}
-)
+# # 2. 安装 Python 模块 (用于 Python 节点引用常量)
+# ament_python_install_package(${PROJECT_NAME})
+# install(DIRECTORY ${PROJECT_NAME}
+#   DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_DIR}
+# )
 
 # 导出依赖
-ament_export_dependencies(std_msgs geometry_msgs builtin_interfaces)
+ament_export_dependencies(std_msgs geometry_msgs nav_msgs builtin_interfaces)
 ament_export_include_directories(include)
 
 ament_package()

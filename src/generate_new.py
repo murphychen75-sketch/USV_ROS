@@ -27,7 +27,7 @@ files[f"{PKG_NAME}/package.xml"] = f"""<?xml version="1.0"?>
   <depend>builtin_interfaces</depend>
   <depend>action_msgs</depend>
   <depend>sensor_msgs</depend> <!-- 新增: 明确依赖 sensor_msgs -->
-  <depend>vision_msgs</depend>
+  <depend>nav_msgs</depend> <!-- 新增: 用于Odometry消息 -->
 
   <member_of_group>rosidl_interface_packages</member_of_group>
 
@@ -51,6 +51,7 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED) # 新增
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED) # 新增
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
@@ -78,7 +79,7 @@ rosidl_generate_interfaces(${{PROJECT_NAME}}
   ${{MSG_FILES}}
   ${{SRV_FILES}}
   ${{ACTION_FILES}}
-  DEPENDENCIES std_msgs geometry_msgs builtin_interfaces
+  DEPENDENCIES std_msgs geometry_msgs nav_msgs builtin_interfaces
 )
 
 # 1. 安装 C++ 头文件 (用于 C++ 节点引用常量)
@@ -93,7 +94,7 @@ install(DIRECTORY ${{PROJECT_NAME}}
 )
 
 # 导出依赖
-ament_export_dependencies(std_msgs geometry_msgs builtin_interfaces)
+ament_export_dependencies(std_msgs geometry_msgs nav_msgs builtin_interfaces)
 ament_export_include_directories(include)
 
 ament_package()
@@ -115,24 +116,30 @@ namespace usv_interfaces {
     constexpr char FRAME_IMU[]       = "imu_link";
     constexpr char FRAME_LIDAR[]     = "lidar_link";
 
-    // 原始传感器 (Raw Sensors)
-    constexpr char TOPIC_SENSOR_GPS[]        = "/sensors/gps/fix";           // sensor_msgs/NavSatFix
+    // 原始传感器 (Raw Sensors) - 与当前仿真话题匹配
+    constexpr char TOPIC_SENSOR_GPS[]        = "/sensors/gps/data";           // sensor_msgs/NavSatFix
     constexpr char TOPIC_SENSOR_IMU[]        = "/sensors/imu/data";          // sensor_msgs/Imu
-    constexpr char TOPIC_SENSOR_MMW_RAW[]    = "/sensors/radar/mmw/points";  // sensor_msgs/PointCloud2
-    constexpr char TOPIC_SENSOR_NAV_IMAGE[]  = "/sensors/radar/nav/image";   // sensor_msgs/CompressedImage
-    constexpr char TOPIC_SENSOR_CAMERA[]     = "/sensors/camera/image_raw";  // sensor_msgs/Image
+    constexpr char TOPIC_SENSOR_LIDAR[]      = "/sensors/lidar/front/points"; // sensor_msgs/PointCloud2
+    constexpr char TOPIC_SENSOR_CAMERA[]     = "/sensors/camera/front/image_raw";  // sensor_msgs/Image
+    constexpr char TOPIC_SENSOR_CAMERA_INFO[] = "/sensors/camera/front/camera_info"; // sensor_msgs/CameraInfo
 
-    // 感知结果 (Perception Results)
-    constexpr char TOPIC_PERCEPTION_MMW[]    = "/perception/radar/mmw/objects";
-    constexpr char TOPIC_PERCEPTION_NAV[]    = "/perception/radar/nav/objects";
-    constexpr char TOPIC_PERCEPTION_VISUAL[] = "/perception/camera/objects";
-    constexpr char TOPIC_PERCEPTION_AIS[]    = "/perception/ais/data";
+    // 系统状态话题 (System State Topics)
+    constexpr char TOPIC_MODEL_POSE[]        = "/model/wamv/pose";           // tf2_msgs/TFMessage
+    constexpr char TOPIC_MODEL_ODOMETRY[]    = "/model/wamv/odometry";       // nav_msgs/Odometry
+    constexpr char TOPIC_MODEL_JOINT_STATE[] = "/model/wamv/joint_state";    // sensor_msgs/JointState
+    constexpr char TOPIC_JOINT_STATES[]      = "/joint_states";              // sensor_msgs/JointState
+    constexpr char TOPIC_TF[]                = "/tf";                        // tf2_msgs/TFMessage
+    constexpr char TOPIC_TF_STATIC[]         = "/tf_static";                 // tf2_msgs/TFMessage
 
-    // 状态与控制 (State & Control)
-    constexpr char TOPIC_VESSEL_STATE[]      = "/usv/state/vessel";
-    constexpr char TOPIC_CONTROL_DEVIATION[] = "/usv/control/deviation";
-    constexpr char TOPIC_CONTROL_MODE[]      = "/usv/control/mode";
-    constexpr char TOPIC_CMD_VEL[]           = "/cmd_vel";
+    // 控制话题 (Control Topics)
+    constexpr char TOPIC_CMD_VEL[]           = "/cmd_vel";                   // geometry_msgs/Twist
+    constexpr char TOPIC_CMD_THRUSTER[]      = "/wamv/thrusters/left_thrust/cmd_thrust"; // Float64MultiArray
+    constexpr char TOPIC_CMD_THRUSTER_RIGHT[] = "/wamv/thrusters/right_thrust/cmd_thrust"; // Float64MultiArray
+
+    // 状态与控制 (State & Control) - 自定义话题
+    constexpr char TOPIC_VESSEL_STATE[]      = "/usv/state/vessel";          // usv_interfaces/VesselState
+    constexpr char TOPIC_CONTROL_DEVIATION[] = "/usv/control/deviation";     // usv_interfaces/ControlDeviation
+    constexpr char TOPIC_CONTROL_MODE[]      = "/usv/control/mode";          // usv_interfaces/OperationMode
 
 } // namespace usv_interfaces
 
@@ -159,29 +166,37 @@ FRAME_IMU       = "imu_link"
 FRAME_LIDAR     = "lidar_link"
 
 # ==========================================
-# 传感器话题 (Sensors)
+# 传感器话题 (Sensors) - 与当前仿真话题匹配
 # ==========================================
-TOPIC_SENSOR_GPS        = "/sensors/gps/fix"           # Type: sensor_msgs/NavSatFix
-TOPIC_SENSOR_IMU        = "/sensors/imu/data"          # Type: sensor_msgs/Imu
-TOPIC_SENSOR_MMW_RAW    = "/sensors/radar/mmw/points"  # Type: sensor_msgs/PointCloud2
-TOPIC_SENSOR_NAV_IMAGE  = "/sensors/radar/nav/image"   # Type: sensor_msgs/CompressedImage
-TOPIC_SENSOR_CAMERA     = "/sensors/camera/image_raw"  # Type: sensor_msgs/Image
+TOPIC_SENSOR_GPS        = "/sensors/gps/data"           # Type: sensor_msgs/NavSatFix
+TOPIC_SENSOR_IMU        = "/sensors/imu/data"           # Type: sensor_msgs/Imu
+TOPIC_SENSOR_LIDAR      = "/sensors/lidar/front/points" # Type: sensor_msgs/PointCloud2
+TOPIC_SENSOR_CAMERA     = "/sensors/camera/front/image_raw"  # Type: sensor_msgs/Image
+TOPIC_SENSOR_CAMERA_INFO = "/sensors/camera/front/camera_info" # Type: sensor_msgs/CameraInfo
 
 # ==========================================
-# 感知结果话题 (Perception)
+# 系统状态话题 (System State)
 # ==========================================
-TOPIC_PERCEPTION_MMW    = "/perception/radar/mmw/objects"    # Type: usv_interfaces/MmwRadarObject
-TOPIC_PERCEPTION_NAV    = "/perception/radar/nav/objects"    # Type: usv_interfaces/NavRadarObject
-TOPIC_PERCEPTION_VISUAL = "/perception/camera/objects"       # Type: usv_interfaces/VisualObject
-TOPIC_PERCEPTION_AIS    = "/perception/ais/data"             # Type: usv_interfaces/AisData
+TOPIC_MODEL_POSE        = "/model/wamv/pose"            # Type: tf2_msgs/TFMessage
+TOPIC_MODEL_ODOMETRY    = "/model/wamv/odometry"        # Type: nav_msgs/Odometry
+TOPIC_MODEL_JOINT_STATE = "/model/wamv/joint_state"     # Type: sensor_msgs/JointState
+TOPIC_JOINT_STATES      = "/joint_states"               # Type: sensor_msgs/JointState
+TOPIC_TF                = "/tf"                         # Type: tf2_msgs/TFMessage
+TOPIC_TF_STATIC         = "/tf_static"                  # Type: tf2_msgs/TFMessage
 
 # ==========================================
-# 状态与控制话题 (State & Control)
+# 控制话题 (Control Topics)
 # ==========================================
-TOPIC_VESSEL_STATE      = "/usv/state/vessel"        # Type: usv_interfaces/VesselState
-TOPIC_CONTROL_DEVIATION = "/usv/control/deviation"   # Type: usv_interfaces/ControlDeviation
-TOPIC_CONTROL_MODE      = "/usv/control/mode"        # Type: usv_interfaces/OperationMode
-TOPIC_CMD_VEL           = "/cmd_vel"                 # Type: geometry_msgs/Twist
+TOPIC_CMD_VEL           = "/cmd_vel"                    # Type: geometry_msgs/Twist
+TOPIC_CMD_THRUSTER_LEFT  = "/wamv/thrusters/left_thrust/cmd_thrust"  # Type: std_msgs/Float64MultiArray
+TOPIC_CMD_THRUSTER_RIGHT = "/wamv/thrusters/right_thrust/cmd_thrust" # Type: std_msgs/Float64MultiArray
+
+# ==========================================
+# 状态与控制话题 (State & Control) - 自定义话题
+# ==========================================
+TOPIC_VESSEL_STATE      = "/usv/state/vessel"           # Type: usv_interfaces/VesselState
+TOPIC_CONTROL_DEVIATION = "/usv/control/deviation"      # Type: usv_interfaces/ControlDeviation
+TOPIC_CONTROL_MODE      = "/usv/control/mode"           # Type: usv_interfaces/OperationMode
 """
 
 # ==========================================
@@ -191,18 +206,21 @@ files[f"{PKG_NAME}/msg/StandardDataTypes.md"] = """# 原始传感器数据类型
 
 为了保持与 ROS 2 生态的兼容性，本系统中的**原始传感器数据**直接使用 ROS 2 标准消息 (`sensor_msgs`)，不进行自定义封装。
 
-## 数据流向参考
+## 当前仿真话题参考
 
 | 数据源 | 话题名称 (Code Constant) | 消息类型 (ROS Type) | 说明 |
 | :--- | :--- | :--- | :--- |
 | **GPS/GNSS** | `TOPIC_SENSOR_GPS` | `sensor_msgs/NavSatFix` | 包含经纬度、海拔及协方差 |
 | **IMU** | `TOPIC_SENSOR_IMU` | `sensor_msgs/Imu` | 包含四元数姿态、角速度、线加速度 |
-| **毫米波雷达(Raw)** | `TOPIC_SENSOR_MMW_RAW` | `sensor_msgs/PointCloud2` | 包含 x, y, z, velocity, intensity 字段 |
-| **导航雷达(Raw)** | `TOPIC_SENSOR_NAV_IMAGE` | `sensor_msgs/CompressedImage` | 极坐标回波图像 (JPEG/PNG) |
-| **摄像头(Raw)** | `TOPIC_SENSOR_CAMERA` | `sensor_msgs/Image` | 原始 RGB 图像数据 |
-| **2D 扫描** | - | `sensor_msgs/LaserScan` | 若有单线雷达或虚拟扫描使用此格式 |
+| **激光雷达** | `TOPIC_SENSOR_LIDAR` | `sensor_msgs/PointCloud2` | 前激光雷达点云数据 |
+| **摄像头** | `TOPIC_SENSOR_CAMERA` | `sensor_msgs/Image` | 前摄像头图像数据 |
+| **摄像头内参** | `TOPIC_SENSOR_CAMERA_INFO` | `sensor_msgs/CameraInfo` | 前摄像头内参信息 |
+| **里程计** | `TOPIC_MODEL_ODOMETRY` | `nav_msgs/Odometry` | WAM-V里程计数据 |
+| **位姿** | `TOPIC_MODEL_POSE` | `tf2_msgs/TFMessage` | WAM-V位姿数据 |
+| **关节状态** | `TOPIC_MODEL_JOINT_STATE` | `sensor_msgs/JointState` | WAM-V关节状态 |
+| **坐标变换** | `TOPIC_TF` | `tf2_msgs/TFMessage` | 坐标变换 |
 
-**注意**：自定义的 `.msg` 文件（如 `MmwRadarObject.msg`）仅用于描述经过感知算法处理后的**目标结果**。
+**注意**：自定义的 `.msg` 文件（如 `VesselState.msg`）用于描述融合后的高级状态信息。
 """
 
 # ==========================================
@@ -357,7 +375,7 @@ def create_package():
             f.write(content)
         print(f"Generated file: {filepath}")
 
-    print("\n" + "="*50)
+    print("\\n" + "="*50)
     print(f"Package '{PKG_NAME}' generated successfully!")
     print("Next steps:")
     print("1. Delete this script.")

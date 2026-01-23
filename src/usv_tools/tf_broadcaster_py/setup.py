@@ -17,7 +17,6 @@ setup(
     maintainer_email='1471072588@qq.com',
     description='TODO: Package description',
     license='TODO: License declaration',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'tf_broadcaster = py03_tf_broadcaster.tf_broadcaster:main',

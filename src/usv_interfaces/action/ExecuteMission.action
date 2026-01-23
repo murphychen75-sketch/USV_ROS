@@ -1,0 +1,16 @@
+# === Goal (请求) ===
+string mission_file_name      # 任务航点文件路径/名称
+string forbidden_zone_file    # 禁航区描述文件路径/名称
+bool loop_execution           # 是否循环执行
+
+---
+# === Result (结果) ===
+bool success
+string message                # 比如 "Mission Complete"
+
+---
+# === Feedback (反馈) ===
+string current_task_name      # 当前阶段名称
+uint32 current_waypoint_index # 当前目标索引
+float32 mission_progress      # 总进度 %
+string status_text            # 状态机描述
