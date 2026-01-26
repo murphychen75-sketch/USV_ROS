@@ -3,6 +3,9 @@
   <!-- Required arg for melodic and kinetic... -->
   <xacro:arg name="namespace" default="wamv"/>
   <xacro:property name="namespace" value="$(arg namespace)" scope="global" />
+  
+  <!-- Visual mesh argument -->
+  <xacro:arg name="visual_mesh" default="package://wamv_description/models/WAM-V-Base/mesh/WAM-V-Base.dae"/>
   <!-- Macro for creating the main collisions as simple shapes. -->
   <xacro:macro name="main_collisions" params="prefix reflect:=1">
     <!-- Main float -->
@@ -98,7 +101,7 @@
   <link name="${namespace}/base_link">
     <visual>
       <geometry>
-        <mesh filename="package://wamv_description/models/WAM-V-Base/mesh/WAM-V-Base.dae"/>
+        <mesh filename="$(arg visual_mesh)"/>
       </geometry>
     </visual>
     <!-- <mesh filename="package://wamv_description/models/WAM-V-Base/mesh/blade_R.dae"/> -->

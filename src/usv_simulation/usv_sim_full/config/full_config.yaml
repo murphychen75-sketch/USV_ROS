@@ -4,16 +4,16 @@ environment:
 robot:
   name: "usv_sim_full"
   # 基础模板 (必须支持参数传入)
-  xacro_template: "wamv_no_battery.urdf.xacro"
-  package_name: "wamv_gazebo"
-  xacro_relative_path: "urdf/wamv_no_battery.urdf.xacro"
+  xacro_template: "wamv_custom.urdf.xacro"
+  package_name: "usv_sim_full"
+  xacro_relative_path: "templates/wamv_custom.urdf.xacro"
   # 推进器配置选项: 'H' (默认后置), 'T' (T型), 'X' (X型), 'CUSTOM' (自定义)
   thruster_config: "CUSTOM"
   spawn_pose: [0.0, 0.0, 0.5, 0.0, 0.0, 0.0]
 
   # [New] 物理与外观覆盖 (可选，不填则用默认)
   overrides:
-    visual_mesh: "package://wamv_description/models/WAM-V-Base/mesh/WAM-V-Base.dae" # 使用无电池模型的外观
+    visual_mesh: "package://wamv_description/models/WAM-V-Base/mesh/blade_R.dae" # 使用新的外观模型
     mass: 180.0 # kg
     # 简化惯性矩阵 (Ixx, Iyy, Izz)，忽略非对角元素以简化配置
     inertia: [100.0, 100.0, 200.0]

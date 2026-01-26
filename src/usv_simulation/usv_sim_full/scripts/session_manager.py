@@ -97,18 +97,24 @@ def generate_parametrized_xacro(config_data, session_dir, root_xacro_path, senso
     robot_config = config_data.get('robot', {})
     xacro_template = robot_config.get('xacro_template', 'wamv_gazebo.urdf.xacro')
     
-    # 判断是否使用本地模板（例如无电池版本）
-    if xacro_template == 'wamv_no_battery.urdf.xacro':
+    # 检查是否是本地模板（检查templates文件夹中是否存在该文件）
+    local_template_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), 
+        'templates', 
+        xacro_template
+    )
+    
+    if os.path.exists(local_template_path):
         # 使用本地模板文件
-        local_template_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), 
-            'templates', 
-            'wamv_no_battery.urdf.xacro'
-        )
-        if not os.path.exists(local_template_path):
-            raise FileNotFoundError(f"Template not found: {local_template_path}")
         xacro_input = local_template_path
     else:
+        # 检查本地模板不存在的情况
+        if xacro_template.endswith(('.urdf.xacro', '.xacro')):
+            # 如果是xacro类型的文件，说明用户可能期望使用本地模板
+            if not os.path.exists(local_template_path):
+                raise FileNotFoundError(f"Local template not found: '{local_template_path}'. "
+                                      f"Please ensure the template file exists in the templates directory.")
+        
         # 使用原始方式：通过ROS包查找
         package_name = robot_config.get('package_name', 'wamv_gazebo')
         xacro_relative_path = robot_config.get('xacro_relative_path', f'urdf/{xacro_template}')
@@ -117,6 +123,10 @@ def generate_parametrized_xacro(config_data, session_dir, root_xacro_path, senso
             xacro_input = os.path.join(pkg_path, xacro_relative_path)
         except Exception:
             xacro_input = f"/home/cczh/simulation/vrx_ws/install/{package_name}/share/{package_name}/{xacro_relative_path}"
+            
+        # 检查ROS包中的模板是否存在
+        if not os.path.exists(xacro_input):
+            raise FileNotFoundError(f"Template not found: neither local template at '{local_template_path}' nor package template at '{xacro_input}' exists.")
 
     # 读取原始Xacro文件内容
     with open(xacro_input, 'r') as f:
@@ -135,9 +145,16 @@ def generate_parametrized_xacro(config_data, session_dir, root_xacro_path, senso
         elif isinstance(value, (int, float)):
             # 替换数值参数
             xacro_content = xacro_content.replace(f'$(arg {key})', str(value))
-        elif isinstance(value, str):
+        elif isinstance(value, str) and key != 'visual_mesh':  # 不替换visual_mesh，因为我们已经在顶部添加了
             # 替换字符串参数
             xacro_content = xacro_content.replace(f'$(arg {key})', str(value))
+
+    # 特别处理visual_mesh参数 - 需要替换模板中的默认值
+    if 'visual_mesh' in overrides:
+        # 直接替换掉默认的visual_mesh参数值
+        old_visual_mesh_def = 'default="package://wamv_description/models/WAM-V-Base/mesh/WAM-V-Base.dae"'
+        new_visual_mesh_def = f'default="{overrides["visual_mesh"]}"'
+        xacro_content = xacro_content.replace(old_visual_mesh_def, new_visual_mesh_def)
 
     # 替换浮力和水动力参数
     buoyancy_params = robot_config.get('buoyancy_params', {})
@@ -158,7 +175,7 @@ def generate_parametrized_xacro(config_data, session_dir, root_xacro_path, senso
                   len(sensors_config.get('imus', [])) > 0 or \
                   len(sensors_config.get('gps_sensors', [])) > 0
                   
-    xacro_content = xacro_content.replace('$(arg has_extra_sensors)', str(has_sensors).lower())
+    xacro_content = xacro_content.replace('$(arg has_sensors)', str(has_sensors).lower())
 
     # 如果有传感器，替换extra_sensors参数
     if has_sensors and sensors_overlay_path and os.path.exists(sensors_overlay_path):
@@ -189,6 +206,39 @@ def generate_parametrized_xacro(config_data, session_dir, root_xacro_path, senso
     
     print(f"Generated parametrized Xacro at: {parametrized_xacro_path}")
     return parametrized_xacro_path
+
+
+def replace_visual_mesh_in_xacro(xacro_content, visual_mesh_path):
+    """
+    替换XACRO内容中的视觉网格文件路径
+    """
+    import re
+    
+    # 替换基础链接(base_link)中的视觉模型
+    # 匹配 <visual>...</visual> 部分，特别是其中的 <mesh filename="..."> 部分
+    visual_pattern = r'(<visual[^>]*>)(.*?)(</visual>)'
+    
+    def replace_mesh_in_visual(match):
+        full_match = match.group(0)
+        visual_start = match.group(1)
+        visual_content = match.group(2)
+        visual_end = match.group(3)
+        
+        # 检查是否是base_link的visual部分
+        if 'base_link' in xacro_content.split('<link')[0] + full_match or '<link name=".*?base_link' in xacro_content:
+            # 替换mesh文件路径
+            mesh_pattern = r'<mesh\s+filename="[^"]*"[^>]*/?>'
+            new_visual_content = re.sub(mesh_pattern, f'<mesh filename="{visual_mesh_path}" />', visual_content)
+            return visual_start + new_visual_content + visual_end
+        else:
+            return full_match
+            
+    # 首先尝试更精确的匹配，查找base_link中的mesh部分
+    # 更简单的方式：直接查找mesh标签并替换
+    mesh_pattern = r'<mesh\s+filename="package://[^"]*/mesh/[^"]*\.dae"[^>]*/?>'
+    xacro_content = re.sub(mesh_pattern, f'<mesh filename="{visual_mesh_path}" />', xacro_content)
+    
+    return xacro_content
 
 
 def generate_sensors_overlay(config_data, session_dir):
@@ -339,12 +389,31 @@ def compile_xacro_to_urdf(parametrized_xacro_path, config_data, session_dir):
     """
     urdf_path = os.path.join(session_dir, "final_robot.urdf")
 
-    # 构建xacro命令 - 由于参数已经注入到Xacro文件中，现在只需要文件路径
+    # 从配置中获取overrides参数
+    robot_config = config_data.get('robot', {})
+    overrides = robot_config.get('overrides', {})
+    
+    # 构建xacro命令 - 添加参数
     cmd = [
         'ros2', 'run', 'xacro', 'xacro',
         parametrized_xacro_path,
         '-o', urdf_path
     ]
+    
+    # 添加overrides参数到命令
+    for key, value in overrides.items():
+        if key == 'inertia' and isinstance(value, list):
+            # 特殊处理惯性参数
+            cmd.append(f"ixx:={value[0]}")
+            cmd.append(f"iyy:={value[1]}")
+            cmd.append(f"izz:={value[2]}")
+        elif isinstance(value, (str, int, float)):
+            # 统一处理字符串、整数和浮点数参数
+            cmd.append(f"{key}:={value}")
+            
+    # 特别处理visual_mesh参数（如果存在）
+    if 'visual_mesh' in overrides:
+        cmd.append(f"visual_mesh:={overrides['visual_mesh']}")
 
     # 执行命令
     result = subprocess.run(cmd, capture_output=True, text=True)
