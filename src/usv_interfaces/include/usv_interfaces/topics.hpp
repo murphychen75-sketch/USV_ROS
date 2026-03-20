@@ -17,6 +17,7 @@ namespace usv_interfaces {
     constexpr char TOPIC_SENSOR_LIDAR[]      = "/sensors/lidar/front/points"; // sensor_msgs/PointCloud2
     constexpr char TOPIC_SENSOR_CAMERA[]     = "/sensors/camera/front/image_raw";  // sensor_msgs/Image
     constexpr char TOPIC_SENSOR_CAMERA_INFO[] = "/sensors/camera/front/camera_info"; // sensor_msgs/CameraInfo
+    constexpr char TOPIC_SENSOR_RADAR_NAV_SECTOR[] = "/sensors/radar/nav/sector"; // marine_sensor_msgs/RadarSector
 
     // 系统状态话题 (System State Topics)
     constexpr char TOPIC_MODEL_POSE[]        = "/model/wamv/pose";           // tf2_msgs/TFMessage
@@ -35,6 +36,13 @@ namespace usv_interfaces {
     constexpr char TOPIC_VESSEL_STATE[]      = "/usv/state/vessel";          // usv_interfaces/VesselState
     constexpr char TOPIC_CONTROL_DEVIATION[] = "/usv/control/deviation";     // usv_interfaces/ControlDeviation
     constexpr char TOPIC_CONTROL_MODE[]      = "/usv/control/mode";          // usv_interfaces/OperationMode
+    constexpr char TOPIC_WAYPOINT_ROUTE[]    = "/usv/control/waypoint_route";// usv_interfaces/WaypointRoute
+
+    // 动态传感器话题模板 (Dynamic Sensor Topic Templates)
+    constexpr char TEMPLATE_CAMERA[] = "/sensors/camera/{sensor_name}/image_raw";
+    constexpr char TEMPLATE_LIDAR[]  = "/sensors/lidar/{sensor_name}/points";
+    constexpr char TEMPLATE_GPS[]    = "/sensors/gps/{sensor_name}/fix";
+    constexpr char TEMPLATE_IMU[]    = "/sensors/imu/{sensor_name}/data";
 
 } // namespace usv_interfaces
 

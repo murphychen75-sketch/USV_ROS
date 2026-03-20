@@ -1,0 +1,12 @@
+uint32 track_id
+float64 x
+float64 y
+float64 v_x
+float64 v_y
+float64 size_w
+float64 size_l
+float64 size_h
+float64[16] covariance
+bool is_dark_target
+bool is_ais_matched
+uint32 matched_mmsi

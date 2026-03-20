@@ -11,17 +11,26 @@ find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED) # 新增
 find_package(builtin_interfaces REQUIRED)
+find_package(marine_sensor_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 # 定义消息文件
 set(MSG_FILES
-  msg/MmwRadarObject.msg
-  msg/NavRadarObject.msg
-  msg/VisualObject.msg
-  msg/AisData.msg
   msg/ControlDeviation.msg
   msg/OperationMode.msg
+  msg/VisionDetection.msg
+  msg/VisionDetectionArray.msg
+  msg/MmwaveTarget.msg
+  msg/MmwaveTargetArray.msg
+  msg/NavRadarTarget.msg
+  msg/NavRadarTargetArray.msg
+  msg/AISTrack.msg
+  msg/AISTrackArray.msg
+  msg/GlobalTrack.msg
+  msg/GlobalTrackArray.msg
   msg/VesselState.msg
+  msg/Waypoint.msg
+  msg/WaypointRoute.msg
 )
 
 set(SRV_FILES
@@ -46,13 +55,17 @@ install(DIRECTORY include/
 )
 
 # 2. 安装 Python 模块 (用于 Python 节点引用常量)
-ament_python_install_package(${PROJECT_NAME})
-install(DIRECTORY ${PROJECT_NAME}
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_DIR}
-)
+# Guard the ament_python_install_package call to avoid duplicate custom-target
+# errors when CMake processes the package multiple times in the same configure
+if(NOT TARGET ament_cmake_python_copy_${PROJECT_NAME})
+  ament_python_install_package(${PROJECT_NAME})
+  install(DIRECTORY ${PROJECT_NAME}
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_DIR}
+  )
+endif()
 
 # 导出依赖
-ament_export_dependencies(std_msgs geometry_msgs nav_msgs builtin_interfaces)
+ament_export_dependencies(std_msgs geometry_msgs nav_msgs builtin_interfaces marine_sensor_msgs)
 ament_export_include_directories(include)
 
 ament_package()

@@ -17,6 +17,7 @@
   <depend>action_msgs</depend>
   <depend>sensor_msgs</depend> <!-- 新增: 明确依赖 sensor_msgs -->
   <depend>nav_msgs</depend> <!-- 新增: 用于Odometry消息 -->
+  <depend>marine_sensor_msgs</depend>
 
   <member_of_group>rosidl_interface_packages</member_of_group>
 

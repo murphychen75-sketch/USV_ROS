@@ -1,0 +1,9 @@
+string camera_id
+string class_name
+int32 class_id
+float64 azimuth
+float64 distance_predict
+float64 size_w
+float64 size_l
+float64 size_h
+float64 confidence
