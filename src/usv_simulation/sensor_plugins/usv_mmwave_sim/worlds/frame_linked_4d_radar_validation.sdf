@@ -1,0 +1,137 @@
+<?xml version="1.0"?>
+<sdf version="1.10">
+  <world name="radar_frame_linked_validation_world">
+    <gravity>0 0 -9.81</gravity>
+
+    <plugin
+      filename="gz-sim-physics-system"
+      name="gz::sim::systems::Physics"/>
+    <plugin
+      filename="gz-sim-user-commands-system"
+      name="gz::sim::systems::UserCommands"/>
+    <plugin
+      filename="gz-sim-scene-broadcaster-system"
+      name="gz::sim::systems::SceneBroadcaster"/>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 100 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.2 0.3 -1</direction>
+    </light>
+
+    <model name="ego_usv_with_radar_link">
+      <static>true</static>
+      <pose>0 0 1.0 0 0 0</pose>
+
+      <link name="base_link">
+        <inertial>
+          <mass>200.0</mass>
+          <inertia>
+            <ixx>50.0</ixx>
+            <iyy>50.0</iyy>
+            <izz>80.0</izz>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyz>0</iyz>
+          </inertia>
+        </inertial>
+
+        <collision name="hull_collision">
+          <geometry>
+            <box>
+              <size>2.0 1.0 0.4</size>
+            </box>
+          </geometry>
+          <pose>-0.7 0 -0.4 0 0 0</pose>
+        </collision>
+
+        <visual name="hull_visual">
+          <geometry>
+            <box>
+              <size>2.0 1.0 0.4</size>
+            </box>
+          </geometry>
+          <pose>-0.7 0 -0.4 0 0 0</pose>
+          <material>
+            <ambient>0.1 0.2 0.5 1</ambient>
+            <diffuse>0.2 0.4 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+
+      <link name="radar_link">
+        <pose>0.8 0 0.8 0 0 0</pose>
+        <visual name="radar_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.12 0.08</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.1 1</ambient>
+            <diffuse>0.9 0.9 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+
+      <joint name="radar_fixed_joint" type="fixed">
+        <parent>base_link</parent>
+        <child>radar_link</child>
+      </joint>
+
+      <plugin filename="libusv_4d_radar_plugin.so" name="usv_4d_radar_gz::FourDRadarPlugin">
+        <topic>/radar/points_4d</topic>
+        <frame_id>radar_link</frame_id>
+        <sensor_link_name>radar_link</sensor_link_name>
+        <ego_link_name>base_link</ego_link_name>
+        <output_in_sensor_frame>true</output_in_sensor_frame>
+
+        <horizontal_fov_deg>100.0</horizontal_fov_deg>
+        <vertical_fov_deg>30.0</vertical_fov_deg>
+        <azimuth_resolution_deg>1.0</azimuth_resolution_deg>
+        <elevation_resolution_deg>1.0</elevation_resolution_deg>
+
+        <min_range>0.8</min_range>
+        <max_range>120.0</max_range>
+        <update_rate_hz>10.0</update_rate_hz>
+
+        <base_rcs>12.0</base_rcs>
+        <rcs_distance_decay>0.01</rcs_distance_decay>
+
+        <enable_sea_clutter>false</enable_sea_clutter>
+        <sea_clutter_probability>0.0</sea_clutter_probability>
+        <sea_clutter_amplitude>0.0</sea_clutter_amplitude>
+      </plugin>
+    </model>
+
+    <model name="target_ship_metal_1">
+      <static>true</static>
+      <pose>22 0 1.0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>6 3 2</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="target_ship_metal_2">
+      <static>true</static>
+      <pose>28 -8 1.2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>5 2.5 2.0</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+  </world>
+</sdf>

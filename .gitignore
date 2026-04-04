@@ -9,6 +9,16 @@ __pycache__/
 *.swp
 *.swo
 
+# Pre-commit cleanup baseline (workspace-wide)
+build/
+install/
+log/
+__pycache__/
+*.pyc
+*.swp
+.vscode/
+_archive_v1_scripts/
+
 # Build and installation directories (common in ROS projects)
 /build/
 /install/
@@ -111,10 +121,6 @@ src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/downloads/
 **/vrx/build/
 **/vrx/install/
 
-# Simulation files that are auto-generated
-*.dae  # 如果是自动生成的DAE文件，手动维护的URDF/SDF不应忽略
-*.stl  # 如果是临时生成的STL文件
-
 # Keep manually maintained URDF/SDF files in core directories
 !src/usv_simulation/usv_sim_full/models/assets/**/*.urdf
 !src/usv_simulation/usv_sim_full/models/assets/**/*.sdf
@@ -141,12 +147,13 @@ src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/downloads/
 !src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/core/**/*.urdf
 !src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/core/**/*.sdf
 
-# User specific files
-*.ini
-*.yaml  # 配置文件，如果包含敏感信息
-*.config
+# 勿提交：usv_sim_full 会话管理器生成的运行快照（路径含本机信息）
+src/usv_simulation/usv_sim_full/usv_sim_full/logs/
 
-# Session files
+# User specific
+*.ini
+
+# Session markers
 .session
 .sessions/
 
@@ -154,44 +161,21 @@ src/usv_simulation/vrx/vrx_urdf/wamv_gazebo/models/downloads/
 *~
 \#*\#
 
-# Log files for simulators
+# Log files
 *.log
 gz_server*.log
 gz_client*.log
-
-# 仿真相关
-*.dae
-*.obj
-*.stl
-*.fbx
-*.blend
-*.urdf
-*.sdf
-*.world
-*.config
-*.yaml
-*.yml
-*.xml
-*.xacro
-*.sdf.jinja
-*.urdf.xacro
-
-# 仿真环境
 **/logs/
 logs/
 
-# 模型相关
-**/models/generated/
-**/models/temp/
-**/models/downloads/
-**/models/assets/
-**/models/original/
-**/models/core/
-
-# 日志文件
-*.log
+# Rosbags and local DB
 *.bag
 *.csv
 *.db3
 *.sqlite
 *.sqlite3
+
+# 本次更新不包含：融合子树、Foxglove SDK 全量、本地 sim_test
+src/usv_fusion/
+src/usv_simulation/third_party/foxglove-sdk/
+src/usv_simulation/sim_test/

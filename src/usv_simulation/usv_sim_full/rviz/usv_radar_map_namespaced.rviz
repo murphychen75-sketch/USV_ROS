@@ -1,0 +1,154 @@
+Panels:
+- Class: rviz_common/Displays
+  Name: Displays
+- Class: rviz_common/Tool Properties
+  Name: Tool Properties
+- Class: rviz_common/Views
+  Name: Views
+Visualization Manager:
+  Displays:
+  - Class: rviz_default_plugins/Grid
+    Name: Grid
+    Enabled: true
+    Plane: XY
+    Cell Size: 1
+    Plane Cell Count: 40
+    Color: 160; 160; 164
+    Reference Frame: map
+
+  - Class: rviz_default_plugins/TF
+    Name: TF
+    Enabled: true
+    Frames:
+      All Enabled: true
+    Show Arrows: true
+    Show Axes: true
+
+  - Class: rviz_default_plugins/RobotModel
+    Name: RobotModel
+    Enabled: true
+    Topic:
+      Value: /robot_description
+
+  - Class: rviz_default_plugins/Map
+    Name: NavRadar Occupancy (Namespaced)
+    Enabled: true
+    Topic:
+      Value: /usv_1/map/navradar/occupancy_grid
+      Depth: 5
+    Update Topic:
+      Value: /usv_1/map/navradar/occupancy_grid_updates
+      Depth: 5
+    Color Scheme: map
+    Draw Behind: false
+    Use Timestamp: false
+
+  - Class: grid_map_rviz_plugin/GridMap
+    Name: NavRadar GridMap (Namespaced)
+    Enabled: false
+    Topic:
+      Value: /usv_1/map/navradar/gridmap
+      Depth: 5
+
+  - Class: rviz_default_plugins/Map
+    Name: Global Costmap
+    Enabled: false
+    Topic:
+      Value: /usv_1/global_costmap/costmap
+      Depth: 5
+    Color Scheme: costmap
+    Draw Behind: true
+    Use Timestamp: false
+
+  - Class: rviz_default_plugins/Map
+    Name: Local Costmap
+    Enabled: false
+    Topic:
+      Value: /usv_1/local_costmap/costmap
+      Depth: 5
+    Color Scheme: costmap
+    Draw Behind: false
+    Use Timestamp: false
+
+  - Class: rviz_default_plugins/PointCloud2
+    Name: Front Lidar Points
+    Enabled: true
+    Topic:
+      Value: /usv_1/sensors/lidar/front_lidar/points
+    Decay Time: 0.5
+    Size (m): 0.08
+    Style: Flat Squares
+
+  - Class: rviz_default_plugins/Image
+    Name: Front Camera Image
+    Enabled: true
+    Topic:
+      Value: /usv_1/sensors/camera/front_cam/image_raw
+      Depth: 5
+    Normalize Range: false
+    Min Value: 0
+    Max Value: 1
+    Median window: 5
+
+  - Class: rviz_default_plugins/PointCloud2
+    Name: NavRadar Points
+    Enabled: false
+    Topic:
+      Value: /usv_1/sensors/radar/nav/points
+    Decay Time: 0.3
+    Size (m): 0.12
+    Style: Flat Squares
+
+  - Class: rviz_default_plugins/PointCloud2
+    Name: Legacy Front Lidar Points
+    Enabled: false
+    Topic:
+      Value: /usv_1/sensors/lidar/front/points
+    Decay Time: 0.5
+    Size (m): 0.08
+    Style: Flat Squares
+
+  - Class: rviz_default_plugins/Image
+    Name: Legacy Front Camera Image
+    Enabled: false
+    Topic:
+      Value: /usv_1/sensors/camera/front/image_raw
+      Depth: 5
+    Normalize Range: false
+    Min Value: 0
+    Max Value: 1
+    Median window: 5
+
+  Enabled: true
+  Global Options:
+    Fixed Frame: map
+    Background Color: 30; 30; 34
+    Frame Rate: 30
+  Name: root
+  Tools:
+  - Class: rviz_default_plugins/Interact
+  - Class: rviz_default_plugins/MoveCamera
+  - Class: rviz_default_plugins/Select
+  - Class: rviz_default_plugins/FocusCamera
+  - Class: rviz_default_plugins/SetInitialPose
+    Topic:
+      Value: /initialpose
+  - Class: rviz_default_plugins/PublishPoint
+    Topic:
+      Value: /clicked_point
+  - Class: rviz_default_plugins/SetGoal
+    Topic:
+      Value: /goal_pose
+Views:
+  Current:
+    Class: rviz_default_plugins/Orbit
+    Distance: 60
+    Focal Point:
+      X: 0
+      Y: 0
+      Z: 0
+    Pitch: 0.785
+    Yaw: 1.2
+Window Geometry:
+  Width: 1680
+  Height: 980

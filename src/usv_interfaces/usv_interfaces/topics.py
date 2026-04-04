@@ -27,7 +27,9 @@ TOPIC_SENSOR_RADAR_NAV_SECTOR = "/sensors/radar/nav/sector"  # Type: marine_sens
 # 系统状态话题 (System State)
 # ==========================================
 TOPIC_MODEL_POSE        = "/model/wamv/pose"            # Type: tf2_msgs/TFMessage
+# Gazebo 侧 /model/{name}/odometry；集成仿真桥接后的 ROS 里程计见 TEMPLATE_ROBOT_ODOM
 TOPIC_MODEL_ODOMETRY    = "/model/wamv/odometry"        # Type: nav_msgs/Odometry
+TEMPLATE_ROBOT_ODOM     = "/{robot_name}/odom"          # usv_sim_full session_manager 桥接输出
 TOPIC_MODEL_JOINT_STATE = "/model/wamv/joint_state"     # Type: sensor_msgs/JointState
 TOPIC_JOINT_STATES      = "/joint_states"               # Type: sensor_msgs/JointState
 TOPIC_TF                = "/tf"                         # Type: tf2_msgs/TFMessage
@@ -53,5 +55,9 @@ TOPIC_WAYPOINT_ROUTE    = "/usv/control/waypoint_route" # Type: usv_interfaces/W
 # ==========================================
 TEMPLATE_CAMERA = "/sensors/camera/{sensor_name}/image_raw"
 TEMPLATE_LIDAR = "/sensors/lidar/{sensor_name}/points"
+TEMPLATE_MMWAVE_POINTS = "/sensors/mmwave/{sensor_name}/points"
 TEMPLATE_GPS = "/sensors/gps/{sensor_name}/fix"
 TEMPLATE_IMU = "/sensors/imu/{sensor_name}/data"
+
+# 毫米波点云（主链路多为 gpu_ray 桥接 + usv_mmwave_sim 增强；命名与 full_config 默认一致）
+TOPIC_SENSOR_MMWAVE_FRONT_POINTS = "/sensors/mmwave/mmwave_front/points"

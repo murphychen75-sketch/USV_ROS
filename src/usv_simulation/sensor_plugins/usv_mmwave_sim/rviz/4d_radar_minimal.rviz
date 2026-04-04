@@ -1,0 +1,86 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Tool Properties
+    Name: Tool Properties
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 1
+      Cell Size: 5
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 160
+      Enabled: true
+      Name: Grid
+      Plane: XY
+      Plane Cell Count: 40
+      Reference Frame: map
+    - Class: rviz_default_plugins/PointCloud2
+      Enabled: true
+      Name: 4D Radar Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /radar/points_4d
+      Style: Points
+      Size (Pixels): 6
+      Size (m): 0.06
+      Color Transformer: Intensity
+      Channel Name: rcs
+      Use rainbow: true
+      Autocompute Intensity Bounds: true
+      Invert Rainbow: false
+      Min Color: 0; 0; 0
+      Max Color: 255; 255; 255
+      Queue Size: 10
+      Decay Time: 0
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Validation models (SDF boxes)
+      Namespaces:
+        {}
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /radar/validation_models
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 52
+    Fixed Frame: map
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 75
+      Enable Stereo Rendering:
+        Stereo Focal Distance: 1
+        Value: false
+      Focal Point:
+        X: 28
+        Y: 0
+        Z: 1
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.55
+      Target Frame: map
+      Yaw: 3.141592653589793
+      Value: Orbit (rviz)
+Window Geometry:
+  Height: 900
+  Width: 1400

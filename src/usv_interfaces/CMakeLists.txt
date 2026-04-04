@@ -24,6 +24,8 @@ set(MSG_FILES
   msg/MmwaveTargetArray.msg
   msg/NavRadarTarget.msg
   msg/NavRadarTargetArray.msg
+  msg/NavRadarFrame.msg
+  msg/NavRadarObject.msg
   msg/AISTrack.msg
   msg/AISTrackArray.msg
   msg/GlobalTrack.msg
@@ -54,15 +56,13 @@ install(DIRECTORY include/
   DESTINATION include
 )
 
-# 2. 安装 Python 模块 (用于 Python 节点引用常量)
-# Guard the ament_python_install_package call to avoid duplicate custom-target
-# errors when CMake processes the package multiple times in the same configure
-if(NOT TARGET ament_cmake_python_copy_${PROJECT_NAME})
-  ament_python_install_package(${PROJECT_NAME})
-  install(DIRECTORY ${PROJECT_NAME}
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_DIR}
-  )
-endif()
+# 2. Python 包：勿再调用 ament_python_install_package(${PROJECT_NAME})。
+# rosidl_generator_py 在 rosidl_generate_interfaces 内已对该包名调用过一次；
+# 再调用会导致 ament_cmake_python_copy_* / *_egg 等 target 重复定义。
+# 常量模块 topics.py 安装到与 rosidl 相同的 site-packages/${PROJECT_NAME}/。
+install(FILES ${PROJECT_NAME}/topics.py
+  DESTINATION ${PYTHON_INSTALL_DIR}/${PROJECT_NAME}
+)
 
 # 导出依赖
 ament_export_dependencies(std_msgs geometry_msgs nav_msgs builtin_interfaces marine_sensor_msgs)

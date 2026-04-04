@@ -1,0 +1,240 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /Maritime Radar Map1
+        - /Lidar front_lidar1
+        - /mmWave mmwave_front1
+      Splitter Ratio: 0.5
+    Tree Height: 600
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Tool Properties
+    Name: Tool Properties
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.03
+        Value: Lines
+      Name: Grid
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Class: rviz_default_plugins/RobotModel
+      Enabled: true
+      Name: RobotModel (usv_1)
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /usv_1/robot_description
+      Update Interval: 0
+      Value: true
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Frame Timeout: 15
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: false
+      Update Interval: 0
+      Value: true
+    - Class: rviz_default_plugins/Odometry
+      Enabled: true
+      Keep: 100
+      Name: Odometry (usv_1)
+      Shape:
+        Alpha: 1
+        Axes Length: 1
+        Axes Radius: 0.1
+        Color: 255; 25; 0
+        Head Length: 0.3
+        Head Radius: 0.1
+        Shaft Length: 1
+        Shaft Radius: 0.05
+        Value: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /usv_1/odom
+      Value: true
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Maritime Radar Map
+      Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /usv_1/map/navradar/occupancy_grid
+      Update Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /usv_1/map/navradar/occupancy_grid_updates
+      Use Timestamp: false
+    - Class: rviz_default_plugins/PointCloud2
+      Enabled: true
+      Name: "Lidar: front_lidar"
+      Position Transformer: XYZ
+      Shape:
+        Value: Points
+      Size (m): 0.01
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /usv_1/sensors/lidar/front_lidar/points
+    - Autocompute Intensity Bounds: true
+      Channel Name: rcs
+      Class: rviz_default_plugins/PointCloud2
+      Color Transformer: Intensity
+      Enabled: true
+      Name: "mmWave: mmwave_front"
+      Position Transformer: XYZ
+      Shape:
+        Value: Points
+      Size (m): 0.02
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /usv_1/sensors/mmwave/mmwave_front/points
+      Use rainbow: true
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: "Camera: front_cam"
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /usv_1/sensors/camera/front_cam/image_raw
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: "Camera: left_cam"
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /usv_1/sensors/camera/left_cam/image_raw
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: "Camera: right_cam"
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /usv_1/sensors/camera/right_cam/image_raw
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Name: "Camera: rear_cam"
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /usv_1/sensors/camera/rear_cam/image_raw
+    - Class: rviz_imu_plugin/Imu
+      Enabled: true
+      Name: "IMU: imu_sensor"
+      Queue Size: 10
+      Style: Axes
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /usv_1/sensors/imu/imu_sensor/data
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /usv_1/initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /usv_1/goal_pose
+    - Class: rviz_default_plugins/PublishPoint
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /clicked_point
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 25
+      Enable Stereo Rendering:
+        Value: false
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.5
+      Target Frame: <Fixed Frame>
+      Value: Orbit (rviz)
+      Yaw: 0.5
+    Saved: null
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 900
+  Hide Left Dock: false
+  Hide Right Dock: false
+  Width: 1600
+  X: 50
+  Y: 50

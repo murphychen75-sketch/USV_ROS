@@ -10,3 +10,4 @@ float64[16] covariance
 bool is_dark_target
 bool is_ais_matched
 uint32 matched_mmsi
+string source_model_name

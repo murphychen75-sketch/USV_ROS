@@ -1,0 +1,89 @@
+# 毫米波雷达最小验证：世界 sydney_regatta，无自定义障碍/动态场景。
+# 船位对准 worlds/sydney_regatta.sdf 中 mb_marker_buoy_red（约 x=-528, y=191），spawn 在浮标西侧，
+# yaw=0 使 base_link +X 指向浮标，便于毫米波与激光同时观察同一目标。
+# 激光雷达与毫米波水平位置一致（相对 base_link 均为 xyz 0,0），激光 z 比毫米波高 0.1 m，用于对照点云。
+# 启动：ros2 launch usv_sim_full mmwave_sydney_minimal.launch.py
+# 内参仍用与本文件同目录的 sensor_config.yaml（由 sensor_config_path 指定）。
+environment:
+  world_name: sydney_regatta
+sensor_config_path: config/sensor_config.yaml
+obstacles:
+  fixed_list: []
+scenario:
+  dynamic_obstacles: []
+visualization:
+  launch_rviz: false
+  enable_telemetry: true
+
+robot_1:
+  name: usv_1
+  xacro_template: wamv_no_battery.urdf.xacro
+  thruster_config: CUSTOM
+  thrusters:
+    enabled: true
+  # [x, y, z, roll, pitch, yaw] 世界系；浮标 mb_marker_buoy_red 约在 (-528, 191)
+  spawn_pose:
+  - -542.0
+  - 191.0
+  - 0.5
+  - 0.0
+  - 0.0
+  - 0.0
+  overrides:
+    visual_mesh: package://usv_sim_full/description/models/body-Base/mesh/M5_body.dae
+    mass: 500.0
+    inertia:
+    - 100.0
+    - 100.0
+    - 200.0
+    thruster_positions:
+      thruster_pos_x: -2.373776
+      thruster_pos_y_left: 0.7
+      thruster_pos_y_right: -0.8
+      thruster_pos_z: 0.318237
+    ground_truth_enabled: true
+  buoyancy_params:
+    hull_length: 4.9
+    hull_radius: 0.213
+    fluid_level: 0.0
+    xDotU: 0.0
+    yDotV: 0.0
+    nDotR: 0.0
+    xU: 100.0
+    xUU: 150.0
+    yV: 100.0
+    yVV: 100.0
+    zW: 500.0
+    kP: 300.0
+    kPP: 600.0
+    mQ: 900.0
+    mQQ: 900.0
+    nR: 800.0
+    nRR: 800.0
+  sensors:
+  - name: mmwave_front
+    type: mmwave_radar
+    parent_link: base_link
+    xyz:
+    - 0.0
+    - 0.0
+    - 1.9
+    rpy:
+    - 0.0
+    - 0.0
+    - 0.0
+    override_topic: /sensors/mmwave/mmwave_front/points
+    enabled: true
+  - name: mmwave_bench_lidar
+    type: lidar
+    parent_link: base_link
+    xyz:
+    - 0.0
+    - 0.0
+    - 2.0
+    rpy:
+    - 0.0
+    - 0.0
+    - 0.0
+    override_topic: /sensors/lidar/mmwave_bench_lidar/points
+    enabled: true

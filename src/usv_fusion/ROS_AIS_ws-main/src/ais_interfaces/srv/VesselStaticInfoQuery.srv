@@ -1,0 +1,10 @@
+uint32 mmsi
+---
+uint32 mmsi
+bool available
+string<=20 vessel_name
+uint16 to_bow
+uint16 to_stern
+uint16 to_port
+uint16 to_starboard
+float32 draught

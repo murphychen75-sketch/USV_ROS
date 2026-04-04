@@ -1,0 +1,113 @@
+# USV_ROS 工程级 Cursor 规则（ROS 2 + 仿真 + 感知融合）
+
+## 0) 语言与沟通
+- 与用户交流统一使用：中文（简体）。
+- 改动说明优先给出：改动目的 -> 影响包/节点 -> 验证命令。
+
+## 1) 工作区定位与边界
+- 本仓库是 ROS 2 多包工作区，根目录包含 `src/`、`build/`、`install/`、`log/`。
+- 主要业务在：
+  - `src/usv_interfaces`：统一接口定义与 topic 常量（C++/Python 共用）
+  - `src/usv_simulation`：仿真、桥接、雷达插件、launch 编排
+  - `src/usv_fusion`：融合算法与 AIS 相关子工程
+- 第三方/外部代码（如 `src/third_party/foxglove-sdk`、`src/third_party/marine_msgs`、`src/usv_fusion/bev/*`）默认最小化改动；若必须改动，先说明原因与风险；版本与抓取记录见 `src/third_party/README.md`。
+
+## 2) 包类型与构建系统识别规则
+- 看到 `package.xml + CMakeLists.txt`：按 `ament_cmake` 包处理。
+- 看到 `setup.py + package.xml`：按 `ament_python`/Python ROS 2 包处理。
+- 优先使用 `colcon` 在工作区根目录构建，不在子目录随意手动编译。
+- 常用构建命令：
+  - 全量：`colcon build --symlink-install`
+  - 指定包：`colcon build --packages-select <pkg> --symlink-install`
+  - 接口包变更后：建议清理并重编相关依赖包（至少重编接口包 + 直接依赖包）。
+
+## 3) 目录结构与文件放置规范
+- ROS 2 C++ 包：
+  - 头文件：`include/<package_name>/`
+  - 源文件：`src/`
+  - 启动文件：`launch/*.launch.py`
+  - 参数：`config/*.yaml`
+- ROS 2 Python 包：
+  - 模块：`<package_name>/`
+  - 可执行入口：`setup.py` 的 `entry_points.console_scripts`
+  - launch 与配置同样放在 `launch/`、`config/`
+- 接口包：
+  - 消息：`msg/*.msg`
+  - 服务：`srv/*.srv`
+  - 动作：`action/*.action`
+  - 必须在 `CMakeLists.txt` 的 `rosidl_generate_interfaces(...)` 显式登记。
+
+## 4) 自定义消息/服务路径关联（重点）
+- USV 主接口包：`src/usv_interfaces`
+  - 消息路径：`src/usv_interfaces/msg/`
+  - 服务路径：`src/usv_interfaces/srv/`
+  - 动作路径：`src/usv_interfaces/action/`
+  - C++ 常量头：`src/usv_interfaces/include/usv_interfaces/topics.hpp`
+  - Python 常量模块：`src/usv_interfaces/usv_interfaces/topics.py`
+- AIS 接口包（子工程）：`src/usv_fusion/ROS_AIS_ws-main/src/ais_interfaces`
+  - 消息/服务由该包自身 `rosidl_generate_interfaces(...)` 生成
+  - 节点调用方在 `ais_nodes` 等包中引用。
+- 任一 `.msg/.srv/.action` 改动时，必须同步检查：
+  - `package.xml` 中 `rosidl_default_generators`、依赖消息包声明
+  - `CMakeLists.txt` 中接口列表与 `DEPENDENCIES`
+  - 下游 C++ include 与 Python import 路径是否仍一致。
+
+## 5) C++ 代码规范（ROS 2 节点）
+- 标准：优先 C++17（与 ROS 2 常见配置一致）。
+- 节点实现约定：
+  - 继承 `rclcpp::Node`，构造函数中先 `declare_parameter` 再 `get_parameter`
+  - 发布/订阅 QoS 显式指定（如传感器流优先 `rclcpp::SensorDataQoS()`）
+  - 日志使用 `RCLCPP_INFO/WARN/ERROR`，避免 `std::cout`
+- 头文件与命名：
+  - include 使用最小依赖；优先 `<...>` 系统头 + 已安装 ROS 头
+  - 常量集中管理，避免在多个节点硬编码 topic/frame/ip/port。
+- 修改 C++ 代码后，至少编译对应包并确认无新增告警/错误。
+
+## 6) Python 代码规范（ROS 2 节点 + Launch）
+- 遵循 PEP 8 与 ROS 2 Python 习惯：
+  - 4 空格缩进；模块/函数/变量 `snake_case`
+  - 节点类名 `PascalCase`，继承 `rclpy.node.Node`
+  - 入口保留 `main()`，并在 `setup.py` 注册 console_scripts
+- Launch 文件约定：
+  - 使用 `generate_launch_description()`
+  - 参数路径优先可配置（`LaunchConfiguration` + `DeclareLaunchArgument`）
+  - 对外部进程清理/兜底逻辑要有注释并保持可开关（避免不可控副作用）。
+
+## 7) CMake/package.xml 修改约束
+- 新增依赖时同时更新：
+  - `package.xml`：`<depend>` 或 build/run 依赖
+  - `CMakeLists.txt`：`find_package(...)` + `ament_target_dependencies(...)`
+- 新增可执行节点（C++）时：
+  - `add_executable(...)`
+  - `ament_target_dependencies(...)`
+  - `install(TARGETS ... DESTINATION lib/${PROJECT_NAME})`
+- 新增 Python 节点时：
+  - 更新 `setup.py` `entry_points`
+  - 必要时更新 `data_files` 安装 `launch/`、`config/`。
+
+## 8) 运行与验证建议
+- 修改接口/消息后：
+  - `colcon build --packages-select usv_interfaces --symlink-install`
+  - 再构建直接依赖包（如雷达/AIS/融合节点包）
+- 修改单包 C++/Python 逻辑后：
+  - `colcon build --packages-select <pkg> --symlink-install`
+  - `source install/setup.bash`
+  - 用对应 `ros2 launch` 或 `ros2 run` 做最小回归。
+- launch 变更后，检查：
+  - 参数文件路径是否可解析
+  - 命名空间是否一致
+  - topic/frame 命名是否与 `usv_interfaces/topics` 常量体系一致。
+
+## 9) 改动安全策略
+- 禁止无关大规模重构；仅改与任务直接相关的包和文件。
+- 不主动修改已 vendored/上游同步目录的风格性内容。
+- 对生成产物、日志、临时文件不做手工编辑。
+- 若发现工作区存在用户未说明的脏改动，避免覆盖；仅在必要文件做最小增量修改。
+
+## 10) Agent 执行偏好
+- 先定位包边界与接口路径，再编码。
+- 优先小步提交式修改：先保证可编译，再补充参数/launch 联动。
+- 输出中始终明确：
+  - 改了哪些包
+  - 是否涉及接口变更
+  - 需要用户执行的构建/验证命令。

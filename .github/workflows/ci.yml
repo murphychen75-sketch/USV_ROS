@@ -1,0 +1,42 @@
+# 工作区级 CI：编译仿真主线（含依赖树），不构建可选 overlay（如 AIS / BEV）。
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-simulation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup ROS 2 Humble
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: humble
+
+      - name: Install colcon / rosdep / ros_gz (Harmonic)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-colcon-common-extensions \
+            python3-rosdep \
+            ros-humble-ros-gzharmonic
+
+      - name: rosdep (usv_interfaces + usv_simulation only)
+        run: |
+          sudo rosdep init || true
+          rosdep update
+          # -r -y：个别包（如实机雷达 SDK）若缺 rosdep 键仍继续，主链路由 --packages-up-to 约束
+          rosdep install --from-paths src/usv_interfaces src/usv_simulation --ignore-src -r -y
+
+      - name: colcon build (--packages-up-to usv_sim_full)
+        run: |
+          source /opt/ros/humble/setup.bash
+          cd ${{ github.workspace }}
+          ./scripts/clean_build.sh --packages-up-to usv_sim_full

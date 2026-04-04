@@ -1,0 +1,17 @@
+USV_ROS
+Copyright 2026 the USV_ROS contributors
+
+This product includes software developed for USV_ROS (ROS 2 workspace:
+simulation, interfaces, and optional fusion/AIS overlays).
+
+Third-party and vendored components (retain their own licenses; see each
+package or upstream tree):
+
+- Virtual RobotX (VRX) — src/usv_simulation/vrx/ — see src/usv_simulation/vrx/LICENSE
+- marine_msgs (marine_sensor_msgs, marine_acoustic_msgs) —
+  src/usv_simulation/third_party/marine_msgs/ — see package.xml / upstream
+- foxglove-sdk (optional ROS packages foxglove_msgs, foxglove_bridge) —
+  src/usv_simulation/third_party/foxglove-sdk/ — see upstream LICENSE
+- Other upstream projects under src/usv_fusion/ or src/third_party/ as applicable
+
+See also: src/usv_simulation/third_party/README.md
