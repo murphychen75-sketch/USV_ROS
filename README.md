@@ -21,6 +21,7 @@ ROS 2 工作区：无人水面艇（USV）**仿真**、统一**接口**（`usv_i
 | [src/usv_simulation/docker/README.md](src/usv_simulation/docker/README.md) | **Docker**：Hub 镜像 `xyjy949/humble2harmonic`、Nav2 现状、**X11 + `--gpus all`** 推荐 `docker run`、容器内分步编译与验证 |
 | [src/usv_simulation/README.md](src/usv_simulation/README.md) | 仿真平台说明、依赖与文档索引 |
 | [src/usv_simulation/docs/docs_v3/仿真仓库结构说明.md](src/usv_simulation/docs/docs_v3/仿真仓库结构说明.md) | **架构向**：目录与包职责 |
+| [src/usv_simulation/docs/docs_v3/终端输出与日志降噪.md](src/usv_simulation/docs/docs_v3/终端输出与日志降噪.md) | **实施记录**：默认降噪行为、`verbose_launch:=true` 恢复详细输出、已改文件清单 |
 | [src/usv_simulation/usv_sim_full/config/notes_config.md](src/usv_simulation/usv_sim_full/config/notes_config.md) | **配置索引**：各 YAML 由谁消费、与 launch / `session_manager` 如何衔接 |
 | [src/usv_interfaces/README.md](src/usv_interfaces/README.md) | 统一消息与 topic 常量 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本与变更记录 |

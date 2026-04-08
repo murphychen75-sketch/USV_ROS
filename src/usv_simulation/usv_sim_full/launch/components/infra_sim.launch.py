@@ -14,6 +14,7 @@ from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable, Opaque
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory, get_package_prefix
+from usv_sim_full.launch_config_helpers import quiet_ros_node_kwargs
 import os
 
 
@@ -24,9 +25,16 @@ def generate_launch_description():
         default_value='sydney_regatta',
         description='仿真环境名称'
     )
+
+    verbose_launch_arg = DeclareLaunchArgument(
+        'verbose_launch',
+        default_value='false',
+        description='为 true 时打印 GZ 资源路径同步信息，全局桥接节点输出到终端'
+    )
     
     # 获取launch配置
     world_name = LaunchConfiguration('world_name')
+    verbose_launch = LaunchConfiguration('verbose_launch')
 
     # 设置GZ_SIM_RESOURCE_PATH环境变量，确保能找到模型文件
     usv_sim_path = get_package_share_directory('usv_sim_full')
@@ -54,13 +62,6 @@ def generate_launch_description():
     else:
         new_resource_path = paths_to_add
     
-    print(f"Setting GZ_SIM_RESOURCE_PATH to: {new_resource_path}")
-    
-    set_resource_path = SetEnvironmentVariable(
-        name='GZ_SIM_RESOURCE_PATH',
-        value=new_resource_path
-    )
-    
     # 同时设置GAZEBO_MODEL_PATH以兼容旧版本
     gazebo_model_path = os.environ.get('GAZEBO_MODEL_PATH', '')
     if gazebo_model_path:
@@ -68,15 +69,14 @@ def generate_launch_description():
     else:
         new_model_path = paths_to_add
     
-    print(f"Setting GAZEBO_MODEL_PATH to: {new_model_path}")
-    
-    set_model_path = SetEnvironmentVariable(
-        name='GAZEBO_MODEL_PATH',
-        value=new_model_path
-    )
-    
     # 设置 GZ_SIM_SYSTEM_PLUGIN_PATH 用以加载雷达等外挂系统插件
     gz_plugin_path = os.environ.get('GZ_SIM_SYSTEM_PLUGIN_PATH', '')
+    new_plugin_path = gz_plugin_path
+    _plugin_setup_error = None
+    set_plugin_path = SetEnvironmentVariable(
+        name='GZ_SIM_SYSTEM_PLUGIN_PATH',
+        value=gz_plugin_path
+    )
     try:
         usv_sim_prefix = get_package_prefix('usv_sim_full')
         radar_plugin_lib_path = os.path.join(os.path.dirname(usv_sim_prefix), 'gz_maritime_radar_plugin', 'lib')
@@ -92,18 +92,38 @@ def generate_launch_description():
             new_plugin_path = f"{combined_plugin_paths}:{gz_plugin_path}" if combined_plugin_paths else gz_plugin_path
         else:
             new_plugin_path = combined_plugin_paths
-        print(f"Setting GZ_SIM_SYSTEM_PLUGIN_PATH to: {new_plugin_path}")
         set_plugin_path = SetEnvironmentVariable(
             name='GZ_SIM_SYSTEM_PLUGIN_PATH',
             value=new_plugin_path
         )
     except Exception as e:
-        print(f"Could not find gz_maritime_radar_plugin: {e}")
-        # 如果找不到包就设空，以避免报错阻断
+        # 如果找不到包就设空，以避免报错阻断（异常信息仅在 verbose_launch 时打印）
+        _plugin_setup_error = e
         set_plugin_path = SetEnvironmentVariable(
             name='GZ_SIM_SYSTEM_PLUGIN_PATH',
             value=gz_plugin_path
         )
+
+    def log_infra_paths_if_verbose(context, *args, **kwargs):
+        v = verbose_launch.perform(context).lower()
+        if v not in ('true', '1', 'yes'):
+            return []
+        print(f"Setting GZ_SIM_RESOURCE_PATH to: {new_resource_path}")
+        print(f"Setting GAZEBO_MODEL_PATH to: {new_model_path}")
+        print(f"Setting GZ_SIM_SYSTEM_PLUGIN_PATH to: {new_plugin_path}")
+        if _plugin_setup_error is not None:
+            print(f"Could not find gz_maritime_radar_plugin: {_plugin_setup_error}")
+        return []
+    
+    set_resource_path = SetEnvironmentVariable(
+        name='GZ_SIM_RESOURCE_PATH',
+        value=new_resource_path
+    )
+    
+    set_model_path = SetEnvironmentVariable(
+        name='GAZEBO_MODEL_PATH',
+        value=new_model_path
+    )
 
     # ros_gz_sim 的 gz_sim.launch.py 在 OpaqueFunction 里用 os.environ（而非 launch context）
     # 拼接 additional_env 中的 GZ_SIM_SYSTEM_PLUGIN_PATH，并覆盖子进程环境里的该变量。
@@ -114,7 +134,9 @@ def generate_launch_description():
         key = 'GZ_SIM_SYSTEM_PLUGIN_PATH'
         if key in context.environment:
             os.environ[key] = context.environment[key]
-            print(f"Synced {key} to os.environ for gz_sim.launch.py (value length={len(os.environ[key])})")
+            v = verbose_launch.perform(context).lower()
+            if v in ('true', '1', 'yes'):
+                print(f"Synced {key} to os.environ for gz_sim.launch.py (value length={len(os.environ[key])})")
         return []
 
     # 启动Gazebo仿真 - 使用ros_gz_sim的内置启动文件
@@ -157,23 +179,29 @@ def generate_launch_description():
         )
         return [gazebo_launch]
     
-    # 启动全局桥接节点（仅包含/clock和系统控制话题）
-    global_bridge_node = Node(
-        package='ros_gz_bridge',
-        executable='parameter_bridge',
-        name='global_bridge',
-        parameters=[{
-            'config_file': os.path.join(get_package_share_directory('usv_sim_full'), 'config', 'global_bridge.yaml')
-        }],
-        output='screen'
-    )
+    def launch_global_bridge(context, *args, **kwargs):
+        v = verbose_launch.perform(context)
+        kw = quiet_ros_node_kwargs(v)
+        return [
+            Node(
+                package='ros_gz_bridge',
+                executable='parameter_bridge',
+                name='global_bridge',
+                parameters=[{
+                    'config_file': os.path.join(get_package_share_directory('usv_sim_full'), 'config', 'global_bridge.yaml')
+                }],
+                **kw,
+            )
+        ]
 
     return LaunchDescription([
         world_name_arg,
+        verbose_launch_arg,
         set_resource_path,
         set_model_path,  # 添加GAZEBO_MODEL_PATH设置
         set_plugin_path,  # 注册仿真插件路径（launch context）
+        OpaqueFunction(function=log_infra_paths_if_verbose),
         OpaqueFunction(function=sync_gz_system_plugin_path_to_os_environ),
         OpaqueFunction(function=launch_gazebo_with_selected_world),
-        global_bridge_node
+        OpaqueFunction(function=launch_global_bridge),
     ])

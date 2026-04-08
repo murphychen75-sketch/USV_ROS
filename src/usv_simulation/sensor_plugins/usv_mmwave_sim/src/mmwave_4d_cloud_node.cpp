@@ -12,6 +12,7 @@
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Vector3.h>
+#include <tf2/time.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -34,6 +35,8 @@ public:
     output_topic_ = declare_parameter<std::string>("output_topic", "");
     odom_topic_ = declare_parameter<std::string>("odom_topic", "");
     world_frame_ = declare_parameter<std::string>("world_frame", "map");
+    // Reliable 与 RViz/部分工具默认订阅 QoS 兼容；Best effort 订阅方仍可接收 Reliable 发布
+    output_use_reliable_qos_ = declare_parameter<bool>("output_use_reliable_qos", true);
 
     base_rcs_ = declare_parameter<double>("base_rcs", 12.0);
     rcs_distance_decay_ = declare_parameter<double>("rcs_distance_decay", 0.01);
@@ -57,7 +60,13 @@ public:
       RCLCPP_WARN(get_logger(), "odom_topic empty: doppler will be 0");
     }
 
-    pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic_, rclcpp::SensorDataQoS());
+    rclcpp::QoS pub_qos(rclcpp::KeepLast(10));
+    if (output_use_reliable_qos_) {
+      pub_qos.reliable();
+    } else {
+      pub_qos.best_effort();
+    }
+    pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(output_topic_, pub_qos);
     sub_cloud_ = create_subscription<sensor_msgs::msg::PointCloud2>(
       input_topic_, rclcpp::SensorDataQoS(),
       std::bind(&Mmwave4dCloudNode::onCloud, this, std::placeholders::_1));
@@ -69,8 +78,10 @@ public:
     }
 
     RCLCPP_INFO(
-      get_logger(), "mmwave_4d_cloud: in=%s out=%s odom=%s",
-      input_topic_.c_str(), output_topic_.c_str(), odom_topic_.c_str());
+      get_logger(),
+      "mmwave_4d_cloud: in=%s out=%s odom=%s output_qos=%s",
+      input_topic_.c_str(), output_topic_.c_str(), odom_topic_.c_str(),
+      output_use_reliable_qos_ ? "reliable" : "best_effort");
   }
 
 private:
@@ -79,13 +90,14 @@ private:
   void onCloud(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
   {
     const std::string sensor_frame = msg->header.frame_id;
-    rclcpp::Time t_sensor(msg->header.stamp);
     geometry_msgs::msg::TransformStamped world_T_sensor;
     geometry_msgs::msg::TransformStamped world_T_base;
     bool have_tf = true;
+    // 使用 TimePointZero 取「最新可用」TF，避免点云 header 时间略超前于 TF 树时的
+    // “extrapolation into the future”（仿真步进与桥接延迟常见）。
     try {
       world_T_sensor = tf_buffer_.lookupTransform(
-        world_frame_, sensor_frame, t_sensor, tf2::durationFromSec(0.05));
+        world_frame_, sensor_frame, tf2::TimePointZero, tf2::durationFromSec(0.1));
     } catch (const tf2::TransformException &e) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 5000,
@@ -110,7 +122,7 @@ private:
       if (!bf.empty()) {
         try {
           world_T_base = tf_buffer_.lookupTransform(
-            world_frame_, bf, t_sensor, tf2::durationFromSec(0.05));
+            world_frame_, bf, tf2::TimePointZero, tf2::durationFromSec(0.1));
           have_base = true;
         } catch (const tf2::TransformException &e) {
           RCLCPP_WARN_THROTTLE(
@@ -259,6 +271,7 @@ private:
   std::string output_topic_;
   std::string odom_topic_;
   std::string world_frame_;
+  bool output_use_reliable_qos_{true};
   double base_rcs_{12.0};
   double rcs_distance_decay_{0.01};
   double perception_range_limit_m_{300.0};

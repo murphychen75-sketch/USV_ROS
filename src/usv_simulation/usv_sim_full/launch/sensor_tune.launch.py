@@ -4,12 +4,14 @@ import subprocess
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, SetEnvironmentVariable
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 from usv_sim_full.launch_config_helpers import (
+    launch_verbose_enabled,
     parse_session_json_from_stdout,
+    quiet_ros_node_kwargs,
     resolve_session_robots,
     session_manager_executable_path,
 )
@@ -61,6 +63,7 @@ def launch_setup(context, *args, **kwargs):
     # 1. 获取用户配置的路径
     config_path = LaunchConfiguration('config_path').perform(context)
     robot_index = int(LaunchConfiguration('robot_index').perform(context).strip() or '0')
+    verbose_s = LaunchConfiguration('verbose_launch').perform(context)
     pkg_share = get_package_share_directory('usv_sim_full')
 
     with open(config_path, 'r') as f:
@@ -68,10 +71,13 @@ def launch_setup(context, *args, **kwargs):
 
     # 2. 调用 session_manager 获取 URDF（多船时由 robot_index 选择）
     try:
-        result = subprocess.run([
+        sm_cmd = [
             session_manager_executable_path(),
             '--config-path', config_path,
-        ], capture_output=True, text=True, check=True)
+        ]
+        if launch_verbose_enabled(verbose_s):
+            sm_cmd.append('--verbose')
+        result = subprocess.run(sm_cmd, capture_output=True, text=True, check=True)
 
         session_output = result.stdout.strip()
         session_info = parse_session_json_from_stdout(session_output)
@@ -94,8 +100,8 @@ def launch_setup(context, *args, **kwargs):
         package='robot_state_publisher',
         executable='robot_state_publisher',
         name='robot_state_publisher',
-        output='screen',
-        parameters=[{'robot_description': robot_desc}]
+        parameters=[{'robot_description': robot_desc}],
+        **quiet_ros_node_kwargs(verbose_s),
     )
 
     # 4. 启动 joint_state_publisher_gui 提供活动关节的滑动条
@@ -103,7 +109,7 @@ def launch_setup(context, *args, **kwargs):
         package='joint_state_publisher_gui',
         executable='joint_state_publisher_gui',
         name='joint_state_publisher_gui',
-        output='screen'
+        **quiet_ros_node_kwargs(verbose_s),
     )
 
     # 5. 启动 RViz 测试环境
@@ -112,16 +118,24 @@ def launch_setup(context, *args, **kwargs):
         package='rviz2',
         executable='rviz2',
         name='rviz2',
-        output='screen',
-        arguments=['-d', rviz_config_file]
+        **quiet_ros_node_kwargs(verbose_s, ['-d', rviz_config_file]),
     )
 
     # 返回纯 TF/URDF 相关的基础节点，不含任何 gazebo/物理引擎 的逻辑
-    return [
+    out = [
         robot_state_publisher_node,
         joint_state_pub_gui_node,
         rviz_node
     ]
+    if not launch_verbose_enabled(verbose_s):
+        return [
+            SetEnvironmentVariable(
+                name='RCUTILS_LOGGING_SEVERITY',
+                value='WARN',
+            ),
+            *out,
+        ]
+    return out
 
 
 def generate_launch_description():
@@ -138,6 +152,11 @@ def generate_launch_description():
             'robot_index',
             default_value='0',
             description='多船时选择第几条船（0 起，对应 session robots 顺序）'
+        ),
+        DeclareLaunchArgument(
+            'verbose_launch',
+            default_value='false',
+            description='true：详细终端输出；false（默认）：降噪'
         ),
         OpaqueFunction(function=launch_setup)
     ])

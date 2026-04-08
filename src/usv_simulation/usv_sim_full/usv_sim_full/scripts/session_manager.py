@@ -184,12 +184,13 @@ def generate_session_sensor_params_xacro(config_data, user_config_path, session_
     return session_sensor_params_xacro, session_sensor_cfg
 
 
-def create_session(config_path):
+def create_session(config_path, verbose=False):
     """
     创建一个新的会话，包括日志目录和配置快照
     
     Args:
         config_path (str): 用户配置文件路径
+        verbose (bool): 为 True 时在 stdout 打印 URDF 生成等诊断信息（JSON 前）
         
     Returns:
         dict: 包含session_path、urdf_path、bridge_yaml_path和rviz_config_path的字典
@@ -249,6 +250,7 @@ def create_session(config_path):
             urdf_filename=urdf_fn,
             sensors_overlay_filename=overlay_fn,
             multi_vehicle_session=multi,
+            verbose=verbose,
         )
         bridge_config_one = generate_bridge_config(eff)
         bridge_yaml_one = os.path.join(session_dir, bridge_fn)
@@ -438,6 +440,7 @@ def compile_xacro_to_urdf(
     urdf_filename='final_robot.urdf',
     sensors_overlay_filename='generated_sensors.xacro',
     multi_vehicle_session=False,
+    verbose=False,
 ):
     """
     使用 xacro 可执行文件编译最终 URDF（继承当前环境，以便解析 ``$(find ...)``）。
@@ -569,13 +572,14 @@ def compile_xacro_to_urdf(
         raise RuntimeError(f"Failed to compile Xacro to URDF:\nCommand: {' '.join(cmd)}\nError: {result.stderr}")
 
     # 后处理：将package://协议替换为model://协议以便Gazebo能正确找到模型
-    post_process_urdf_for_gazebo(urdf_path)
+    post_process_urdf_for_gazebo(urdf_path, verbose=verbose)
 
-    print(f"Generated URDF at: {urdf_path}")
+    if verbose:
+        print(f"Generated URDF at: {urdf_path}")
     return urdf_path
 
 
-def post_process_urdf_for_gazebo(urdf_path):
+def post_process_urdf_for_gazebo(urdf_path, verbose=False):
     """
     后处理URDF文件，将package://协议的网格路径替换为正确的model://协议路径
     这样Gazebo就能正确找到模型文件
@@ -619,7 +623,8 @@ def post_process_urdf_for_gazebo(urdf_path):
     with open(urdf_path, 'w') as f:
         f.write(modified_content)
     
-    print(f"Post-processed URDF for Gazebo compatibility")
+    if verbose:
+        print(f"Post-processed URDF for Gazebo compatibility")
 
 
 def generate_bridge_config(config_data):
@@ -1038,6 +1043,28 @@ def generate_rviz_config(config_data, session_dir):
             }
             displays.append(display_config)
 
+    # scenario.ground_truth_sim：CTRV 真值 Marker（Gazebo 另由 ground_truth_gazebo_models_node）
+    displays.append({
+        'Class': 'rviz_default_plugins/MarkerArray',
+        'Enabled': True,
+        'Name': 'Scenario CTRV targets (ground_truth_sim)',
+        'Namespaces': {
+            'target_pose': True,
+            'target_path': True,
+            'target_history': True,
+        },
+        'Topic': {
+            'Value': '/sim/ground_truth_markers',
+            'Depth': 10,
+            'Durability Policy': 'Volatile',
+            'Filter size': 10,
+            'History Policy': 'Keep Last',
+            'Reliability Policy': 'Reliable',
+        },
+        'Queue Size': 10,
+        'Value': True,
+    })
+
     # 保存RViz配置到会话目录
     rviz_config_path = os.path.join(session_dir, "session.rviz")
     with open(rviz_config_path, 'w') as f:
@@ -1130,10 +1157,15 @@ def main():
     
     parser = argparse.ArgumentParser(description='Session Manager for USV Simulation')
     parser.add_argument('--config-path', type=str, required=True, help='Path to user config file')
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='Print URDF generation diagnostics to stdout before JSON (default: quiet)',
+    )
     
     args = parser.parse_args()
     
-    result = create_session(args.config_path)
+    result = create_session(args.config_path, verbose=args.verbose)
     
     # 输出JSON格式的结果，供launch文件读取
     print(json.dumps(result))

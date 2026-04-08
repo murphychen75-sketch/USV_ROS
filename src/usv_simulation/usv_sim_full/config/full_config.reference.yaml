@@ -55,13 +55,35 @@ obstacles:
 #   speed     — 沿航路前进的标量速度（与内部控制逻辑配合）。
 #   loop      — 是否在航路点间往返循环。
 #   waypoints — [[x,y], [x,y], ...]；至少 2 个点才有巡逻运动。
+#   size — 可选。圆柱： [radius, length]；长方体： [sx, sy, sz]。缺省圆柱 r=0.8,h=1.2，长方体 1.2³。
+#   插入方式 — scenario_manager_node 仅使用 ros_gz_sim create（gz-transport），不依赖 rclpy /world/.../SpawnEntity。
 #
 # ground_truth_sim（可选，与 dynamic_obstacles 同级）:
 #   enabled — true 时 main.launch 启动全局 scenario_ground_truth_node（ground_truth_sim/ground_truth_node）。
-#   reference_robot — 环带采样圆心：TF parent reference_frame → child {reference_robot}/base_link 的平移；缺省为第一艘 robot 名。
+#   gazebo_visual — true 时额外启动 scenario_ground_truth_gazebo_models（ground_truth_gazebo_models_node）：
+#     默认 gazebo_target_geometry: box — 按 size_l×size_w×size_h 生成长方体 SDF，视觉与 collision 同尺寸，并设 contact/collide_bitmask 以参与物理接触；
+#     可选 gazebo_target_geometry: cylinder — 外接圆+高（旧外观）。spawn 用 ros_gz_sim create；位姿用 gz service
+#     /world/<world>/set_pose_vector（gz.msgs.Pose_V）；删除用 /world/<world>/remove（gz.msgs.Entity）。
+#     contact_collide_bitmask — 可选整数或 0x 字符串（如 4294967295），与场景其它刚体 bitmask 需有交集才碰撞。
+#     不依赖 rclpy SpawnEntity/SetEntityPose（Humble 上常与 gz 侧服务端无法匹配）。
+#   gazebo_model_prefix — 实体名前缀，默认 gt_ctrv_，实体名为 {prefix}{track_id}。
+#   spawn_delay_sec — 节点启动后按时钟（use_sim_time 时为仿真时钟）再延迟该秒数后才 spawn/set_pose（默认 10）。
+#   world_service_wait_sec — 映射为 gz service 调用的超时毫秒（默认 1.0s → 1000 ms）；另可在节点上声明 create_cli_timeout_sec、spawn_thread_pool_size。
+#   cylinder_radius_cap_m / cylinder_height_cap_m — >0 时：box 模式对水平对角半长与高度缩放上限；cylinder 模式为半径/高度上限（米）；0 不限制。
+#   collision_topic — 非空时订阅 ros_gz_interfaces/Contacts（话题名勿带前导 /），须 ros_gz_bridge 从 Gazebo contact 桥接；模型名命中 {gazebo_model_prefix}{track_id} 时从 Gazebo 删除并抑制重生，直至该 track_id 从 /sim/ground_truth 消失。
+#   collision_string_topic — 可选：订阅 std_msgs/String，data 为模型基名（如 gt_ctrv_1），语义同上。
+#   collision_debounce_sec — 碰撞去抖（秒）。
+#   reference_robot — 环带采样圆心：TF parent reference_frame → child {reference_robot}/{reference_child_frame} 的平移；缺省为第一艘 robot 名。
+#   reference_child_frame — 默认 base_link。
+#   reference_tf_timeout_sec — TF 不可用超过该秒数则在 map 原点生成目标并发布（避免永不发 /sim/ground_truth）；0 表示无限等待。
 #   reference_frame — 通常为 map。
 #   frame_id — GlobalTrackArray.header.frame_id，与积分坐标系一致，通常为 map。
+#   fence_enabled — true 时仅在 frame_id 平面用轴对齐矩形围栏；越界目标从 /sim/ground_truth 移除（RViz 同步删标记）。
+#   fence_min_x / fence_max_x / fence_min_y / fence_max_y — 围栏闭区间边界（米）。
+#   fence_maintain_target_count — true 时越界后立即在框内随机补生，保持 target_count；false 则数量只减不增。
+#   启用围栏时初始位置在框内均匀采样（不再用 annulus 相对参考船环带）；未启用时仍为 annulus_* + reference。
 #   其余 speed_min、omega_limit、target_count、annulus_* 等同 ground_truth_node ROS 参数。
+#   （Nav2 代价地图是否订阅真值：暂缓，由后续需求单独设计，例如 PointCloud2 + voxel_layer。）
 scenario:
   dynamic_obstacles:
     - name: patrol_boat_1
@@ -82,6 +104,7 @@ scenario:
         - [30.0, 10.0]
   # ground_truth_sim:
   #   enabled: true
+  #   gazebo_visual: true
   #   reference_robot: usv_1
   #   reference_frame: map
   #   frame_id: map
@@ -279,17 +302,6 @@ robot_2:
       thruster_pos_y_right: -0.8
       thruster_pos_z: 0.318237
     ground_truth_enabled: true
-  # ground_truth_sim：见上文 robot_1 说明；以下为示例参数。
-  ground_truth_sim:
-    enabled: true
-    speed_min: 2.0
-    speed_max: 12.0
-    omega_limit: 0.1
-    omega_noise_std: 0.005
-    omega_decay: 0.99
-    target_count: 5
-    annulus_radius_min: 50.0
-    annulus_radius_max: 500.0
   buoyancy_params:
     hull_length: 4.9
     hull_radius: 0.213

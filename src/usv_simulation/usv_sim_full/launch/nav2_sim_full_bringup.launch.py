@@ -9,7 +9,14 @@ from usv_sim_full.launch_config_helpers import (
     ship_config_blocks,
 )
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction, LogInfo, OpaqueFunction
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    LogInfo,
+    OpaqueFunction,
+    SetEnvironmentVariable,
+    TimerAction,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -45,6 +52,18 @@ def generate_launch_description():
     enable_robot_localization = LaunchConfiguration('enable_robot_localization')
     localization_params_file = LaunchConfiguration('localization_params_file')
     use_static_map_odom_tf = LaunchConfiguration('use_static_map_odom_tf')
+    disable_fastdds_shm = LaunchConfiguration('disable_fastdds_shm')
+
+    def disable_fastdds_shm_env(context, *args, **kwargs):
+        """Gazebo + 多 ROS 节点时 Fast DDS 默认共享内存易抖动，可触发 lifecycle 服务响应超时。"""
+        if disable_fastdds_shm.perform(context).lower() != 'true':
+            return []
+        return [
+            SetEnvironmentVariable(
+                name='RMW_FASTRTPS_USE_SHM',
+                value='0',
+            ),
+        ]
 
     def prelaunch_cleanup(context, *args, **kwargs):
         if auto_cleanup.perform(context).lower() != 'true':
@@ -77,6 +96,8 @@ def generate_launch_description():
 
         return []
 
+    verbose_launch = LaunchConfiguration('verbose_launch')
+
     sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(main_launch_file),
         launch_arguments={
@@ -86,6 +107,7 @@ def generate_launch_description():
             'use_static_map_odom_tf': use_static_map_odom_tf,
             # 使用包内 default.rviz 作为 RViz 底稿，不再打开 session_manager 生成的 session.rviz
             'rviz_config_path_override': default_rviz_config,
+            'verbose_launch': verbose_launch,
         }.items(),
     )
 
@@ -132,6 +154,7 @@ def generate_launch_description():
                 'namespace': resolved_ns,
                 'params_file': params_file.perform(context),
                 'use_sim_time': use_sim_time.perform(context),
+                'verbose_launch': LaunchConfiguration('verbose_launch').perform(context),
             }.items(),
         )
 
@@ -180,8 +203,11 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'nav2_start_delay',
-            default_value='10.0',
-            description='Delay seconds before starting Nav2'
+            default_value='25.0',
+            description=(
+                'Nav2 启动前延时（秒）：等待 Gazebo spawn、/tf 与 map→odom 静态 TF 稳定；'
+                '多船 + 毫米波/雷达链路易出现 usv_1/odom 尚未入缓冲，默认 25；仍报错可再加到 30'
+            ),
         ),
         DeclareLaunchArgument(
             'auto_cleanup',
@@ -192,6 +218,14 @@ def generate_launch_description():
             'cleanup_fastdds_shm',
             default_value='false',
             description='Additionally clean /dev/shm/fastrtps* before launching'
+        ),
+        DeclareLaunchArgument(
+            'disable_fastdds_shm',
+            default_value='true',
+            description=(
+                'true：子进程设置 RMW_FASTRTPS_USE_SHM=0，减轻 planner_server change_state 等与 '
+                'Fast DDS 共享内存相关的超时/丢响应；仍异常时可试 cleanup_fastdds_shm:=true 或 Cyclone DDS'
+            ),
         ),
         DeclareLaunchArgument(
             'enable_robot_localization',
@@ -208,7 +242,13 @@ def generate_launch_description():
             default_value='true',
             description='Publish static identity map->odom TF in main launch'
         ),
+        DeclareLaunchArgument(
+            'verbose_launch',
+            default_value='false',
+            description='透传 main / nav2_thruster：true 时终端详细输出（默认降噪）'
+        ),
         LogInfo(msg=['Starting simulation bringup from: ', config_path]),
+        OpaqueFunction(function=disable_fastdds_shm_env),
         OpaqueFunction(function=prelaunch_cleanup),
         sim_launch,
         OpaqueFunction(function=delayed_nav2_launch_with_resolved_ns),

@@ -10,7 +10,6 @@ import yaml
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from ros_gz_interfaces.srv import SpawnEntity
 
 class DynamicObstacle:
     def __init__(self, config, node):
@@ -22,7 +21,9 @@ class DynamicObstacle:
         self.speed = config.get('speed', 1.0)
         self.loop = config.get('loop', True)
         self.waypoints = config.get('waypoints', [])
-        
+        # 可选尺寸：圆柱 [radius, length]；长方体 [sx, sy, sz]（与 obstacles.fixed_list.size 用法一致）
+        self.size = config.get('size')
+
         self.current_wp_idx = 1 if len(self.waypoints) > 1 else 0
         self.direction = 1 # 1 for forward, -1 for backward
         if len(self.waypoints) > 0:
@@ -52,7 +53,9 @@ class DynamicObstacle:
 class ScenarioManager(Node):
     def __init__(self):
         super().__init__('scenario_manager')
-        
+        # ros_gz_sim create 往往先返回、Gazebo 再异步读 -file；立即删临时 SDF 会导致两艘船都插不进。
+        self._retained_spawn_sdf_paths: list[str] = []
+
         self.declare_parameter('config_path', '')
         config_path = self.get_parameter('config_path').get_parameter_value().string_value
         
@@ -68,71 +71,18 @@ class ScenarioManager(Node):
         self.obs_configs = scenario_cfg.get('dynamic_obstacles', [])
         
         self.obstacles = []
-        
-        # 等待 /world/<name>/create 就绪后再生成；超时则走 ros_gz_sim create CLI（仍会做 success 检查）。
-        # 默认等待 10s；机器或世界较慢时可自行调大 _wait_for_world_spawn_service 的 timeout_sec。
-        self.spawn_client = self.create_client(SpawnEntity, f'/world/{self.world_name}/create')
-        self.use_spawn_service = self._wait_for_world_spawn_service(timeout_sec=10.0)
-        if not self.use_spawn_service:
-            self.get_logger().warn(
-                f"在时限内未等到 /world/{self.world_name}/create，将仅用 ros_gz_sim create CLI 尝试生成动态障碍。"
-            )
+
+        # Humble 下 rclpy 对 /world/.../SpawnEntity 常无法与 gz 侧服务端匹配；与 ground_truth_gazebo_models
+        # 一致，直接使用 ros_gz_sim create（gz-transport），避免 10s 空等与误导性 WARN。
+        self.get_logger().info(
+            f"动态障碍：使用 ros_gz_sim create 插入世界 '{self.world_name}'。"
+        )
 
         self.spawn_obstacles()
         
         # Timer for kinematic control (10 Hz)
         self.dt = 0.1
         self.timer = self.create_timer(self.dt, self.control_loop)
-
-    def _wait_for_world_spawn_service(self, timeout_sec=10.0) -> bool:
-        srv = f'/world/{self.world_name}/create'
-        deadline = time.monotonic() + timeout_sec
-        attempt = 0
-        while time.monotonic() < deadline:
-            remaining = deadline - time.monotonic()
-            wait = min(5.0, max(0.1, remaining))
-            if self.spawn_client.wait_for_service(timeout_sec=wait):
-                self.get_logger().info(f'Gazebo 生成服务已就绪: {srv}')
-                return True
-            attempt += 1
-            if attempt % 2 == 0:
-                self.get_logger().warn(
-                    f'仍在等待 {srv}（Gazebo 世界加载中），剩余约 {remaining:.0f}s …'
-                )
-        return False
-
-    def _spawn_dynamic_obstacle_via_service(self, obs, obstacle_sdf) -> bool:
-        req = SpawnEntity.Request()
-        req.entity_factory.name = obs.name
-        req.entity_factory.sdf = obstacle_sdf
-        req.entity_factory.allow_renaming = True
-        if len(obs.waypoints) > 0:
-            req.entity_factory.pose.position.x = float(obs.waypoints[0][0])
-            req.entity_factory.pose.position.y = float(obs.waypoints[0][1])
-            req.entity_factory.pose.position.z = 0.5
-
-        future = self.spawn_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=60.0)
-        if not future.done():
-            self.get_logger().error(
-                f'动态障碍 {obs.name}：调用 {self.world_name}/create 超时，未收到响应。'
-            )
-            return False
-        try:
-            resp = future.result()
-        except Exception as exc:
-            self.get_logger().error(f'动态障碍 {obs.name}：spawn 服务异常: {exc}')
-            return False
-        if not resp.success:
-            self.get_logger().error(
-                f'动态障碍 {obs.name}：Gazebo 拒绝生成（success=false）。'
-                '请检查终端 Gazebo 报错、world_name 是否与 environment.world_name 一致、SDF 是否合法。'
-            )
-            return False
-        self.get_logger().info(
-            f"动态障碍已插入仿真：配置名='{obs.requested_name}'，实体名='{obs.name}'（服务返回 success）。"
-        )
-        return True
 
     def get_color_rgba(self, color_name):
         colors = {
@@ -149,12 +99,20 @@ class ScenarioManager(Node):
         name = obs_cfg.name
         shape = obs_cfg.shape
         color = self.get_color_rgba(obs_cfg.color)
-        
+        sz = getattr(obs_cfg, "size", None)
+
         if shape == 'box':
-            # Slightly larger default to improve visibility in Gazebo scene.
-            geom = "<box><size>1.2 1.2 1.2</size></box>"
-        else: # default cylinder
-            geom = "<cylinder><radius>0.8</radius><length>1.2</length></cylinder>"
+            if sz is not None and len(sz) >= 3:
+                sx, sy, szf = float(sz[0]), float(sz[1]), float(sz[2])
+                geom = "<box><size>%.6f %.6f %.6f</size></box>" % (sx, sy, szf)
+            else:
+                geom = "<box><size>1.2 1.2 1.2</size></box>"
+        else:
+            if sz is not None and len(sz) >= 2:
+                r, h = float(sz[0]), float(sz[1])
+                geom = "<cylinder><radius>%.6f</radius><length>%.6f</length></cylinder>" % (r, h)
+            else:
+                geom = "<cylinder><radius>0.8</radius><length>1.2</length></cylinder>"
             
         sdf = f"""<?xml version="1.0" ?>
         <sdf version="1.6">
@@ -191,7 +149,7 @@ class ScenarioManager(Node):
         return sdf
 
     def spawn_obstacles(self):
-        for cfg in self.obs_configs:
+        for i, cfg in enumerate(self.obs_configs):
             obs = DynamicObstacle(cfg, self)
             self.obstacles.append(obs)
 
@@ -201,14 +159,10 @@ class ScenarioManager(Node):
                 f"waypoints={obs.waypoints}, speed={obs.speed}"
             )
 
-            spawned = False
-            if self.use_spawn_service:
-                spawned = self._spawn_dynamic_obstacle_via_service(obs, obstacle_sdf)
-            if not spawned:
-                self.get_logger().warn(
-                    f"动态障碍 {obs.name}：服务路径未成功，改用 ros_gz_sim create CLI。"
-                )
-                self._spawn_with_create_cli(obs, obstacle_sdf)
+            self._spawn_with_create_cli(obs, obstacle_sdf)
+            # 错开连续 create，减轻 gz 侧异步读文件与 transport 竞态
+            if i + 1 < len(self.obs_configs):
+                time.sleep(0.3)
 
     def _spawn_with_create_cli(self, obs, obstacle_sdf):
         """Spawn an obstacle with ros_gz_sim create as a fallback path."""
@@ -245,10 +199,7 @@ class ScenarioManager(Node):
             self.get_logger().error(f"Exception while spawning {obs.name} via CLI: {exc}")
         finally:
             if tmp_sdf_path and os.path.exists(tmp_sdf_path):
-                try:
-                    os.remove(tmp_sdf_path)
-                except Exception:
-                    pass
+                self._retained_spawn_sdf_paths.append(tmp_sdf_path)
 
     def control_loop(self):
         for obs in self.obstacles:
@@ -321,6 +272,12 @@ def main(args=None):
     finally:
         for obs in node.obstacles:
             obs.cleanup()
+        for p in getattr(node, '_retained_spawn_sdf_paths', []):
+            if p and os.path.isfile(p):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
         node.destroy_node()
         rclpy.shutdown()
 

@@ -105,6 +105,8 @@ mmwave:
     range_error_at_reference_m: 0.66 # 距离误差参考距离 (m)
     range_error_reference_m: 300.0 # 距离误差参考距离 (m)
     azimuth_error_std_deg: 0.5 # 方位角误差标准差 (度)
+    # 最终 …/points 发布：true=Reliable（避免 RViz 等默认 Reliable 订阅收不到）；false=典型传感器 Best Effort
+    output_use_reliable_qos: true
     horizontal_ray_samples: 120 # ceil(horizontal_fov_deg / azimuth_resolution_deg)
     vertical_ray_samples: 30 # ceil(vertical_fov_deg / elevation_resolution_deg)
     gpu_ray_max_range: 300.0 # 应 = min(max_range, perception_range_limit_m)

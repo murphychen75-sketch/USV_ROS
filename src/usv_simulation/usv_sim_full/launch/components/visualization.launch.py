@@ -10,32 +10,44 @@
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+from usv_sim_full.launch_config_helpers import quiet_ros_node_kwargs
+
 
 def generate_launch_description():
-    # 声明launch参数
     rviz_config_path_arg = DeclareLaunchArgument(
         'rviz_config_path',
         default_value='',
         description='RViz配置文件的绝对路径'
     )
-    
-    # 获取launch配置
-    rviz_config_path = LaunchConfiguration('rviz_config_path')
 
-    # 启动RViz2节点
-    rviz_node = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2',
-        arguments=['-d', rviz_config_path],
-        output='screen'
+    verbose_launch_arg = DeclareLaunchArgument(
+        'verbose_launch',
+        default_value='false',
+        description='为 true 时 RViz 输出到终端（默认写入 ~/.ros/log）'
     )
+
+    rviz_config_path = LaunchConfiguration('rviz_config_path')
+    verbose_launch = LaunchConfiguration('verbose_launch')
+
+    def launch_rviz(context, *args, **kwargs):
+        cfg = rviz_config_path.perform(context)
+        v = verbose_launch.perform(context)
+        kw = quiet_ros_node_kwargs(v, ['-d', cfg])
+        return [
+            Node(
+                package='rviz2',
+                executable='rviz2',
+                name='rviz2',
+                **kw,
+            )
+        ]
 
     return LaunchDescription([
         rviz_config_path_arg,
-        rviz_node
+        verbose_launch_arg,
+        OpaqueFunction(function=launch_rviz),
     ])

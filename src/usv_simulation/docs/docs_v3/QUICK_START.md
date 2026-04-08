@@ -6,6 +6,8 @@
 
 本页回答：`从哪跑`（环境）→ **`怎么跑`** → **`怎么配`** → **`怎么接数据`**。
 
+终端默认已做降噪；需完整 INFO 排障时见 **[终端输出与日志降噪.md](./终端输出与日志降噪.md)**（含 `verbose_launch:=true`）。
+
 ---
 
 ## 0) 环境与入口：Docker 或本机
@@ -113,6 +115,15 @@ source install/setup.bash
 ros2 launch usv_sim_full main.launch.py
 ```
 
+**启动后控制台里仍可能看到的提示（多数不是功能故障）**：
+
+- **`libEGL … failed to create dri2 screen`**：显示栈/无物理 GPU/远程无 GL 时常见；仿真仍可跑。需要无头或软件渲染时可查 Gazebo 文档中的渲染后端/`gz sim -s` 等选项。
+- **Gazebo `gz_frame_id` / `frame_id` … not defined in SDF**：URDF→SDF 转换保留的 ros_gz 专用标签，Harmonic 会提示并继续加载，一般可忽略；要彻底消掉需在生成链路里剥离这些属性（改动面较大）。
+- **`kdl_parser` 根连杆带惯性**：WAM-V 等 URDF 常见；`robot_state_publisher` 仍工作，属上游模型习惯。
+- **`NodeShared::RecvSrvRequest() error sending response: Host unreachable`**：Gazebo **gz-transport** 回包失败（多机/容器 `GZ_IP`、错误 discovery、防火墙、多实例冲突等）。尽量单实例仿真、与 launch 同一 shell 环境、`unset GZ_IP IGN_IP` 后重试；详见 [`usv_sim_full/launch/notes.md`](../../usv_sim_full/launch/notes.md)。
+- **`adaptive_radar_grid_map_node` 的 `[MAP RESET]`**：建图节点在雷达数据就绪后扩展栅格，属信息级日志。
+- **`scenario.ground_truth_sim.params_file` 额外 YAML**：顶层节点名须为 **`scenario_ground_truth_node`**（与 `main.launch.py` / `test_hull.launch.py` 一致），否则参数不会加载。
+
 ### 1.2 键盘遥控 `usv_1` 双推进器
 
 在 **Gazebo 仿真已启动**（例如已运行 **§1.1**），且 `full_config.yaml` 中 **`robot_1.name` 为 `usv_1`**（仓库默认）时，**另开一终端**：
@@ -196,6 +207,10 @@ docker build -f src/usv_simulation/docker/Dockerfile.humble2harmonic_nav2 -t xyj
 | `robot_N.overrides.thruster_positions.thruster_pos_z` | 推进器 z 位置 |
 | `robot_N.overrides.ground_truth_enabled` | 传给 xacro：是否在 URDF 中启用 **Gazebo P3D 真值里程计插件**（与 `scenario.ground_truth_sim` 无关） |
 | `scenario.ground_truth_sim.enabled` | 为 true 时由 `main.launch.py` 启动 **全局** `scenario_ground_truth_node`（`ground_truth_sim/ground_truth_node`） |
+| `scenario.ground_truth_sim.gazebo_visual` | 为 true 时额外启动 **`scenario_ground_truth_gazebo_models`**：用 **`ros2 run ros_gz_sim create`** 生成柱状 SDF 实体，用 **`gz service` → `/world/<world>/set_pose_vector`**（`gz.msgs.Pose_V`）每周期批量同步位姿，删除走 **`/world/<world>/remove`**；**不依赖** rclpy 的 `SpawnEntity`/`SetEntityPose`（Humble 上常与 gz 侧无法匹配）。**世界名**与 `environment.world_name` 一致 |
+| `scenario.ground_truth_sim.gazebo_model_prefix` | Gazebo 模型名前缀，默认 `gt_ctrv_`，实体名为 `{prefix}{track_id}` |
+| `scenario.ground_truth_sim.spawn_delay_sec` | `ground_truth_gazebo_models_node` 启动后（`use_sim_time` 时为仿真时钟）再延迟该秒数后才 **spawn/set_pose**（默认 10） |
+| `scenario.ground_truth_sim.world_service_wait_sec` | 映射为 **gz service 超时（毫秒）**：取值（秒）×1000 后用于 `gz service --timeout`（默认 1.0 → 1000 ms）。另可在节点参数中设置 `create_cli_timeout_sec`、`spawn_thread_pool_size` |
 | `scenario.ground_truth_sim.reference_robot` | 环带圆心：取该船 `base_link` 在 `reference_frame`（通常 `map`）下的位置；缺省为第一艘船名 |
 | `scenario.ground_truth_sim.frame_id` | 通常为 `map`：`GlobalTrackArray` 与 Marker 的坐标系 |
 | `scenario.ground_truth_sim.speed_min` / `speed_max` 等 | CTRV 参数，与 `ground_truth_node` 一致 |
@@ -221,8 +236,10 @@ docker build -f src/usv_simulation/docker/Dockerfile.humble2harmonic_nav2 -t xyj
 | `scenario.dynamic_obstacles[].speed` | 巡逻速度（m/s） |
 | `scenario.dynamic_obstacles[].loop` | `true`=往复巡逻，`false`=跑完停止 |
 | `scenario.dynamic_obstacles[].waypoints` | 路径点列表 `[[x1,y1],[x2,y2],...]` |
+| `scenario.dynamic_obstacles[].size` | 可选。圆柱 `[半径, 高度]`；长方体 `[sx,sy,sz]`（米）；缺省圆柱约 r=0.8、h=1.2 |
+| （动态障碍插入） | **`scenario_manager_node`** 仅使用 **`ros_gz_sim create`** 插入实体，与真值 Gazebo 镜像技术路线一致 |
 
-**周邻 CTRV 真值**：在 **`scenario.ground_truth_sim`** 中配置（与 `dynamic_obstacles` 同级），在 **map** 系发布 `/sim/ground_truth`，目标初始环带圆心取 **`reference_robot`** 在 map 下的位置。与 **Nav2 / 本船推进** 可并存；`ground_truth_node` **不**驱动 Gazebo 刚体。若将来「本船仅由绝对真值位姿驱动」，须与 Nav2 **互斥**（见 `usv_sim_full/launch/notes.md`）。
+**周邻 CTRV 真值**：在 **`scenario.ground_truth_sim`** 中配置（与 `dynamic_obstacles` 同级），在 **map** 系发布 `/sim/ground_truth` 与 `/sim/ground_truth_markers`；**RViz**：`default.rviz` 与会话 RViz 已订阅 **`/sim/ground_truth_markers`**。节点使用命名空间 **`target_pose` / `target_path` / `target_history`**（球体、预测线、历史线），显示项中须勾选这三项，勿只启用空命名空间 `""`。插件说明里的 *“Displays visualization_msgs::MarkerArray messages without presuming…”* 是 **MarkerArray 插件的固定描述**，不是运行错误。目标环带圆心默认取 TF **`reference_frame` → `{reference_robot}/{reference_child_frame}`**（缺省 `base_link`）。若该 TF 长时间不可用（例如 Gazebo 实体晚于节点启动），`reference_tf_timeout_sec`（默认 25，示例 `full_config` 为 30）到期后会在 **map 原点** 生成目标并继续发布，避免 **`/sim/ground_truth` 永远无数据**（进而 Gazebo `gt_ctrv_*` 也不会生成）。`ros2 topic hz /sim/ground_truth` 若提示 **`GlobalTrackArray` invalid**，请先在同一终端执行 **`source install/setup.bash`**（否则 CLI 找不到 `usv_interfaces`）。开启 **`gazebo_visual`** 时由 **`ground_truth_gazebo_models_node`** 经 **create + gz set_pose_vector** 在 Gazebo 生成并跟随柱状体；**`environment.world_name` 须与 `.sdf` 中 `<world name>` 一致**。若 `GlobalTrackArray.header.frame_id` 与 `frame_id` 配置不一致（例如发布为 `base_link`），柱体仍按世界坐标应用，仅影响 RViz/语义。**柱体过大**：可在 **`scenario.ground_truth_sim`** 中设 **`cylinder_radius_cap_m` / `cylinder_height_cap_m`**（>0 为上限米数，0 不限制）。**碰撞后从 Gazebo 移除**：在 YAML 中设置非空 **`collision_topic`**（订阅 `ros_gz_interfaces/Contacts`），并自行用 **`ros_gz_bridge`** 把世界里的 contact 话题桥到该 ROS 名（示例见 `ground_truth_sim/config/ros_gz_bridge_contacts.example.yml`）；未桥接时节点不会收到碰撞，柱体不会消失。**Nav2 代价地图**：当前未接真值。`ground_truth_node` 不驱动本船刚体；本船绝对真值驱动时须与 Nav2 互斥（见 `launch/notes.md`）。回归：`colcon build --packages-select ground_truth_sim usv_sim_full --symlink-install` 后 `timeout 120 ros2 launch usv_sim_full main.launch.py`，日志中应出现 **`Gazebo spawn OK (create CLI)`** 且无长时间 “Waiting for …/create”。
 
 ### 2.2 怎么加传感器
 
@@ -264,6 +281,7 @@ robot_1:
 ```yaml
 - name: patrol_boat_3
   shape: cylinder
+  size: [0.5, 1.0]   # 圆柱 [半径, 高度]（米）；box 时用 [sx, sy, sz]
   color: Yellow
   speed: 1.5
   loop: true

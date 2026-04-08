@@ -12,6 +12,22 @@ from ament_index_python.packages import get_package_prefix, get_package_share_di
 ROBOT_SLOT_KEY_RE = re.compile(r'^robot_(\d+)$')
 
 
+def launch_verbose_enabled(verbose_str: str) -> bool:
+    """解析各 launch 中 ``verbose_launch`` 等参数（true/1/yes）。"""
+    return str(verbose_str).strip().lower() in ('true', '1', 'yes')
+
+
+def quiet_ros_node_kwargs(verbose_str: str, base_arguments=None):
+    """默认降噪：终端少刷屏，完整日志在 ``~/.ros/log``。``verbose_launch`` 为真时恢复 screen。"""
+    args = list(base_arguments or [])
+    if launch_verbose_enabled(verbose_str):
+        return {'output': 'screen', 'arguments': args}
+    return {
+        'output': 'log',
+        'arguments': args + ['--ros-args', '--log-level', 'warn'],
+    }
+
+
 def session_manager_executable_path():
     """返回已安装的 ``session_manager`` 可执行文件路径。
 
@@ -237,11 +253,67 @@ def build_mmwave_4d_cloud_parameters(mm_defs: dict, input_topic: str, output_top
         'range_error_at_reference_m': float(md.get('range_error_at_reference_m', 0.66)),
         'range_error_reference_m': float(md.get('range_error_reference_m', 300.0)),
         'azimuth_error_std_deg': float(md.get('azimuth_error_std_deg', 0.5)),
+        'output_use_reliable_qos': _yaml_bool(md.get('output_use_reliable_qos'), True),
     }
 
 
 # full_config `ground_truth_sim:` 中传给 ground_truth_node 的键（排除元数据）
-GROUND_TRUTH_SIM_META_KEYS = frozenset({'enabled', 'params_file'})
+GROUND_TRUTH_SIM_META_KEYS = frozenset(
+    {
+        'enabled',
+        'params_file',
+        'gazebo_visual',
+        'gazebo_model_prefix',
+        'spawn_delay_sec',
+        'world_service_wait_sec',
+        # 仅 ground_truth_gazebo_models_node 使用，勿写入 ground_truth_node 参数 YAML
+        'collision_topic',
+        'collision_string_topic',
+        'collision_debounce_sec',
+        'cylinder_radius_cap_m',
+        'cylinder_height_cap_m',
+        'gazebo_target_geometry',
+        'contact_collide_bitmask',
+        'create_cli_timeout_sec',
+        'spawn_thread_pool_size',
+    }
+)
+
+
+def merge_ground_truth_gazebo_models_params(
+    world_name: str,
+    scen_gt_cfg: dict,
+    tracks_topic: str,
+    model_prefix: str,
+    gz_spawn_delay: float,
+    gz_svc_wait: float,
+) -> dict:
+    """组装 scenario_ground_truth_gazebo_models 的参数字典（含 scenario.ground_truth_sim 中的可选扩展）。"""
+    p = {
+        'world_name': world_name,
+        'tracks_topic': tracks_topic,
+        'model_name_prefix': model_prefix,
+        'spawn_delay_sec': gz_spawn_delay,
+        'world_service_wait_sec': gz_svc_wait,
+    }
+    for k in (
+        'collision_topic',
+        'collision_string_topic',
+        'collision_debounce_sec',
+        'cylinder_radius_cap_m',
+        'cylinder_height_cap_m',
+        'gazebo_target_geometry',
+        'contact_collide_bitmask',
+        'create_cli_timeout_sec',
+        'spawn_thread_pool_size',
+    ):
+        if k not in scen_gt_cfg:
+            continue
+        v = scen_gt_cfg[k]
+        if v is None or v == '':
+            continue
+        p[k] = v
+    return p
 
 # 与 ground_truth_sim/config/ground_truth_params.yaml 对齐；scenario 集成时由 full_config 覆盖 frame_id/reference_*
 DEFAULT_GROUND_TRUTH_NODE_PARAMS = {
@@ -249,6 +321,8 @@ DEFAULT_GROUND_TRUTH_NODE_PARAMS = {
     'frame_id': 'map',
     'reference_robot': '',
     'reference_frame': 'map',
+    'reference_child_frame': 'base_link',
+    'reference_tf_timeout_sec': 25.0,
     'target_count': 5,
     'annulus_radius_min': 50.0,
     'annulus_radius_max': 500.0,
@@ -270,6 +344,12 @@ DEFAULT_GROUND_TRUTH_NODE_PARAMS = {
     'rng_seed': -1,
     'tracks_topic': 'sim/ground_truth',
     'markers_topic': 'sim/ground_truth_markers',
+    'fence_enabled': False,
+    'fence_min_x': -500.0,
+    'fence_max_x': 500.0,
+    'fence_min_y': -500.0,
+    'fence_max_y': 500.0,
+    'fence_maintain_target_count': True,
 }
 
 
@@ -292,6 +372,13 @@ def scenario_ground_truth_sim_config(user_config: dict) -> dict:
     return out
 
 
+def ground_truth_gazebo_visual_enabled(gt_cfg: dict) -> bool:
+    """`scenario.ground_truth_sim.gazebo_visual` → 是否启动 Gazebo 柱状实体镜像节点。"""
+    if not isinstance(gt_cfg, dict):
+        return False
+    return _yaml_bool(gt_cfg.get('gazebo_visual'), False)
+
+
 def resolve_ground_truth_user_params_path(full_config_path: str, params_file) -> str:
     """ground_truth_sim.params_file 相对于 full_config 所在目录解析。"""
     if params_file is None:
@@ -307,9 +394,17 @@ def resolve_ground_truth_user_params_path(full_config_path: str, params_file) ->
 
 
 def write_ground_truth_node_params_yaml(
-    gt_cfg: dict, dest_path: str, user_config: Optional[dict] = None
+    gt_cfg: dict,
+    dest_path: str,
+    user_config: Optional[dict] = None,
+    *,
+    ros_node_name: str = "scenario_ground_truth_node",
 ) -> None:
-    """写入仅含 ground_truth_node/ros__parameters 的临时 YAML（scenario.ground_truth_sim）。"""
+    """写入临时 YAML（scenario.ground_truth_sim）。
+
+    ros_node_name 必须与 launch 里 Node(name=...) 一致，否则参数不会加载（曾导致 frame_id 等
+    全部回落到 declare_parameter 默认值，例如误用 base_link）。
+    """
     ros_params = dict(DEFAULT_GROUND_TRUTH_NODE_PARAMS)
     for k, v in gt_cfg.items():
         if k in GROUND_TRUTH_SIM_META_KEYS:
@@ -317,7 +412,7 @@ def write_ground_truth_node_params_yaml(
         ros_params[k] = v
     if user_config is not None and 'reference_robot' not in gt_cfg:
         ros_params['reference_robot'] = primary_robot_name(user_config)
-    payload = {'ground_truth_node': {'ros__parameters': ros_params}}
+    payload = {ros_node_name: {'ros__parameters': ros_params}}
     with open(dest_path, 'w', encoding='utf-8') as f:
         yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=True)
 

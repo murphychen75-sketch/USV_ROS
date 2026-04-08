@@ -10,7 +10,7 @@
 
 | 文件 | 用途摘要 |
 |------|-----------|
-| **`main.launch.py`** | **唯一全量仿真主入口**：`session_manager` 解析多船 → **`infra_sim`** → 每船静态 **`map`→`{sanitized}/odom`**（可关）→ **逐船 `robot_bringup`**（海事雷达桥按传感器块开关）；若 **`scenario.ground_truth_sim.enabled`** 则启动全局 **`scenario_ground_truth_node`**（map 系 CTRV 周邻真值）；可选 **RViz**；配置含毫米波时启动 **`mmwave_4d_cloud_node`**；每船 **`usv_sim_wrapper`**；**`enable_env_dynamics`**；**`scenario_manager_node`**；海事雷达时按船 **`gy_radar_driver/radar_controller`**。Launch 参数：`config_path`、`enable_robot_localization`、`localization_params_file`、`localization_start_delay`、`use_static_map_odom_tf`。 |
+| **`main.launch.py`** | **唯一全量仿真主入口**：`session_manager` 解析多船 → **`infra_sim`** → 每船静态 **`map`→`{sanitized}/odom`**（可关）→ **逐船 `robot_bringup`**（海事雷达桥按传感器块开关）；若 **`scenario.ground_truth_sim.enabled`** 则启动 **`scenario_ground_truth_node`**（map 系 CTRV 真值）；若另设 **`gazebo_visual: true`** 再启动 **`scenario_ground_truth_gazebo_models`**（Gazebo 柱状实体跟随真值）；可选 **RViz**（`default.rviz` / 会话 RViz 含 `/sim/ground_truth_markers`）；毫米波、**`usv_sim_wrapper`**、**`scenario_manager_node`** 等见前文。Launch 参数：`config_path`、`enable_robot_localization`、`localization_params_file`、`localization_start_delay`、`use_static_map_odom_tf`。 |
 | **`nav2_sim_full_bringup.launch.py`** | **仿真 + Nav2 一键 bringup**：可选启动前 `pkill` 清理残留进程；`Include` **`main.launch.py`** 拉起仿真；延时后再 `Include` **`nav2_thruster_bringup.launch.py`**。`namespace` 默认 `auto` 时从 `full_config` 解析主船名。 |
 | **`nav2_thruster_bringup.launch.py`** | **仅导航与控制桥**（假定仿真已在跑）：`tf_namespace_relay`、动态改写 Nav2 代价地图 `map_topic` 指向 `/<ns>/map/navradar/occupancy_grid` 后 `Include` **`nav2_bringup/navigation_launch.py`**，并启动 **`cmd_vel_to_thruster`**。通常由 `nav2_sim_full_bringup` 调用，也可单独对接已运行的仿真。 |
 | **`sensor_tune.launch.py`** | **无 Gazebo 的 TF/URDF 调参**：`session_manager` + 按 `robot_index` 选船 URDF，将 `model://` 转回 `package://` 后启动 `robot_state_publisher`、`joint_state_publisher_gui`、`rviz2`（`tf_tune.rviz`）。用于关节/连杆可视化调试，**不含仿真与桥接**。 |
@@ -97,6 +97,10 @@ flowchart TB
   P_tf -.-> MAP
 ```
 
+### Nav2 报 `map` 不存在 / costmap 等 TF 超时
+
+仿真使用 **`/clock`（`use_sim_time`）** 时，`main.launch.py` 里 **`map`→`{robot}/odom` 的 `static_transform_publisher` 也必须 `use_sim_time: true`**。否则静态 TF 用墙钟打戳，Nav2 用仿真时刻查 TF，会出现 **`Invalid frame ID "map"`** 或 **`Timed out waiting for transform ... to map`**（`tf2_echo` 也可能先报错再变好）。**`nav2_sim_full_bringup`** 默认 **`nav2_start_delay:=15`**，在 spawn/桥接稍慢时可再加大。
+
 ### `robot_bringup` 每船传入要点（摘要）
 
 | 参数来源 | 说明 |
@@ -117,6 +121,18 @@ flowchart TB
 | **`scenario_manager_node`** | 仅 **`scenario.dynamic_obstacles`**（以及 `environment.world_name` 用于 spawn 服务名） | **场景里的动态障碍**（如巡逻艇）：生成简单 SDF、spawn、`cmd_vel` 环路、为障碍再起小型桥；**不读 `robot_1.sensors`，不改本船 URDF/海事或毫米波参数** |
 
 因此流程图里二者相邻，只是 **launch 列表顺序** 如此，不是「两个节点都在配置同一艘船的 maritime/mmwave」。
+
+### `NodeShared::RecvSrvRequest() error sending response: Host unreachable`
+
+出自 **Gazebo Sim 的 gz-transport**（TCP 回包到服务调用方失败），常见于：
+
+- **多机/容器与宿主机混跑**：`gz service` 子进程或另一终端里的客户端连到了**错误的 discovery 端点**（例如仍指向旧容器 IP）。同一台机器上跑仿真时，尽量 **统一终端**、同一 `ROS_DOMAIN_ID`，并避免残留 **`GZ_IP` / `IGN_IP`** 指向不可达地址。
+- **防火墙或网络分区**：阻断 gz-transport 选用的回连端口。
+- **多实例冲突**：两台 `gz sim` 或错误 `GZ_PARTITION` 导致服务注册混乱。
+
+排查：只保留一个仿真实例；`unset GZ_IP IGN_IP` 后重开 shell；在**与 launch 同一环境**下执行 `gz service -l` 确认世界服务存在。
+
+开启 **`gazebo_visual`** 时，若仍频繁出现该报错，多为 **多个 `ros_gz_sim create` 与 `gz service set_pose_vector` 同时打 gz-transport**。`ground_truth_gazebo_models_node` 已对 **create / remove / set_pose** 子进程 **全局互斥**，并 **保留 create 用临时 SDF 至节点退出**（避免 Gazebo 异步读文件时路径已删）。
 
 ### 海事雷达 vs 毫米波：同级传感器，为何拆在 `robot_bringup` 与 `main`？
 
@@ -224,11 +240,13 @@ flowchart TB
 
 ---
 
-## `ground_truth_sim` 与 Nav2 / P3D（备忘）
+## `ground_truth_sim` 与 Nav2 / P3D / Gazebo 实体（备忘）
 
 - **`overrides.ground_truth_enabled`**（xacro）：URDF 内 **Gazebo P3D 真值里程计**，与 ROS 包 **`ground_truth_sim`** 无关。
-- **`scenario.ground_truth_sim.enabled`**：由 **`main.launch.py`** 启动全局 **`scenario_ground_truth_node`**，在 **map** 系发布 **`/sim/ground_truth`**（及 markers）；环带圆心取 **`reference_robot`** 在 map 下的位置。**不**驱动 Gazebo 刚体；与 **Nav2** 通常 **可并存**。
-- 若将来某船改为 **本船位姿/速度仅由仿真绝对真值写出**（如强制 `SetEntityPose` 驱动本船），则应 **关闭** 该船的 Nav2/推进闭环，避免双重控制。
+- **`scenario.ground_truth_sim.enabled`**：启动 **`scenario_ground_truth_node`**，在 **map** 系发布 **`/sim/ground_truth`** 与 **`/sim/ground_truth_markers`**；环带圆心取 **`reference_robot`**。与 **Nav2** 通常 **可并存**（本船仍由 Nav2/推进驱动时）。RViz 中 Marker 命名空间为 **`target_pose` / `target_path` / `target_history`**；插件面板里那句 *“Displays visualization_msgs::MarkerArray…”* 为 **插件说明**，非报错。
+- **`scenario.ground_truth_sim.gazebo_visual`**：启动 **`ground_truth_gazebo_models_node`**，订阅同一真值话题，在 **`environment.world_name`** 对应世界中 **`/world/<name>/create`** 生成 **圆柱 SDF**（`size_l/size_w` → 水平最小外接圆半径，`size_h` → 柱高），周期 **`set_pose`**。**占位几何**：当前为柱状浮体，便于在 Gazebo 窗口可见；**后续可换**为实船 URDF/SDF（扩展节点或替换 spawn 模板即可）。
+- **Nav2 代价地图**：当前**未**将 CTRV 真值接入局部/全局 costmap；若需规划避障「看见」虚拟目标，后续再定（如 `PointCloud2` + `voxel_layer` 等）。
+- 若将来某船改为 **本船位姿仅由仿真绝对真值写出**（如 `SetEntityPose` 驱动本船），则应 **关闭** 该船的 Nav2/推进闭环，避免双重控制。
 
 ---
 

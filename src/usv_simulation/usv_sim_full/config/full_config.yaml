@@ -19,11 +19,13 @@ obstacles:
     - 5.0
     color: Green
 # 动态障碍 → scenario_manager_node（航路点巡逻）；world_name 须与 environment 一致。
-# ground_truth_sim：CTRV 虚拟周邻目标真值（map 系，环带圆心取 reference_robot 在 map 下位置）；与 robot_* 无关。
+# ground_truth_sim：CTRV 周邻真值（map）；gazebo_visual 时在 Gazebo 生成同尺寸柱状实体（见文档）。
 scenario:
   dynamic_obstacles:
   - name: patrol_boat_1
     shape: cylinder
+    # 可选：[半径, 高度]（米）；见 full_config.reference.yaml
+    size: [0.45, 1.0]
     color: Yellow
     speed: 2.0
     loop: true
@@ -34,6 +36,7 @@ scenario:
       - 30.0
   - name: patrol_boat_2
     shape: cylinder
+    size: [0.45, 1.0]
     color: Red
     speed: 3.0
     loop: true
@@ -44,8 +47,28 @@ scenario:
       - 10.0
   ground_truth_sim:
     enabled: true
+    gazebo_visual:  true
+    spawn_delay_sec: 10.0
+    # 真值 Gazebo 尺寸：默认长方体与 size_l/w/h 一致（gazebo_target_geometry: box）；0 表示不限制 cap
+    gazebo_target_geometry: box
+    cylinder_radius_cap_m: 4.0
+    cylinder_height_cap_m: 5.0
+    # 围栏（map 轴对齐矩形）：越界则从真值话题消失；开 gazebo_visual 时 Gazebo 模型同步被 remove
+    fence_enabled: true
+    fence_min_x: -450.0
+    fence_max_x: 300.0
+    fence_min_y: -120.0
+    fence_max_y: 50.0
+    fence_maintain_target_count: true
+    # 碰撞移除（可选，与围栏二选一即可）：非空须 ros_gz_bridge Contacts
+    # collision_topic: sim/gazebo_contacts
+    collision_debounce_sec: 0.5
+    # gz service --timeout（毫秒）= 该值（秒）×1000；详见 full_config.reference.yaml / QUICK_START
+    world_service_wait_sec: 1.0
     reference_robot: usv_1
     reference_frame: map
+    # TF 超时后仍在 map 原点生成目标，避免永不发布 /sim/ground_truth（spawn 晚于节点启动时常见）
+    reference_tf_timeout_sec: 30.0
     frame_id: map
     speed_min: 2.0
     speed_max: 12.0
@@ -54,7 +77,7 @@ scenario:
     omega_decay: 0.99
     target_count: 5
     annulus_radius_min: 50.0
-    annulus_radius_max: 500.0
+    annulus_radius_max: 300.0
 # RViz 是否随 main 启动；enable_telemetry 影响 session_manager 桥接生成。
 visualization:
   launch_rviz: true

@@ -18,6 +18,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import IncludeLaunchDescription
 from launch.actions import ExecuteProcess, OpaqueFunction, TimerAction
 from launch_ros.descriptions import ParameterValue
+from usv_sim_full.launch_config_helpers import quiet_ros_node_kwargs
 import os
 import re
 
@@ -174,6 +175,12 @@ def generate_launch_description():
         description='Gazebo 世界名（与 SDF 中 <world name="..."> 一致，如 sydney_regatta）；空则交给 create 默认'
     )
 
+    verbose_launch_arg = DeclareLaunchArgument(
+        'verbose_launch',
+        default_value='false',
+        description='为 true 时本组件各节点恢复 screen + INFO 级日志（默认降噪写入 ~/.ros/log）'
+    )
+
     # 获取launch配置
     robot_name = LaunchConfiguration('robot_name')
     urdf_path = LaunchConfiguration('urdf_path')
@@ -195,14 +202,17 @@ def generate_launch_description():
     enable_obstacle_spawner = LaunchConfiguration('enable_obstacle_spawner')
     create_entity_delay = LaunchConfiguration('create_entity_delay')
     gz_world_name = LaunchConfiguration('gz_world_name')
+    verbose_launch = LaunchConfiguration('verbose_launch')
 
     # 启动robot_state_publisher - 使用 OpaqueFunction 在运行时读取并转换 URDF 路径
     # 将 session_manager 输出的 model:// URI 还原为 RViz 可识别的 package:// URI
     def launch_robot_state_publisher(context, *args, **kwargs):
         actual_urdf_path = urdf_path.perform(context)
         use_sim_time_val = use_sim_time.perform(context).lower() == 'true'
+        v = verbose_launch.perform(context)
         with open(actual_urdf_path, 'r') as f:
             robot_desc = _convert_model_uri_to_package_uri(f.read())
+        kw = quiet_ros_node_kwargs(v)
         node = Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
@@ -211,7 +221,7 @@ def generate_launch_description():
                 'robot_description': robot_desc,
                 'use_sim_time': use_sim_time_val
             }],
-            output='screen'
+            **kw,
         )
         return [node]
 
@@ -222,6 +232,8 @@ def generate_launch_description():
         delay_s = float(create_entity_delay.perform(context))
         world_gz = gz_world_name.perform(context).strip()
         use_sim_time_val = use_sim_time.perform(context).lower() == 'true'
+        v = verbose_launch.perform(context)
+        create_kw = quiet_ros_node_kwargs(v)
         safe = re.sub(r'[^a-zA-Z0-9_]', '_', rn)
         arg_list = []
         if world_gz:
@@ -240,9 +252,9 @@ def generate_launch_description():
             package='ros_gz_sim',
             executable='create',
             name=f'gz_create_{safe}',
-            output='screen',
             parameters=[{'use_sim_time': use_sim_time_val}],
-            arguments=arg_list,
+            arguments=arg_list + create_kw.get('arguments', []),
+            output=create_kw['output'],
         )
         return [TimerAction(period=delay_s, actions=[create_entity_node])]
 
@@ -251,6 +263,9 @@ def generate_launch_description():
         rn = robot_name.perform(context)
         safe = re.sub(r'[^a-zA-Z0-9_]', '_', rn)
         use_sim_time_val = use_sim_time.perform(context).lower() == 'true'
+        v = verbose_launch.perform(context)
+        bridge_kw = quiet_ros_node_kwargs(v)
+        odom_kw = quiet_ros_node_kwargs(v)
         bridge_path = bridge_config_path.perform(context)
         bridge_on = enable_maritime_radar_bridge.perform(context).lower() == 'true'
         radar_sensor_name_str = radar_sensor_name.perform(context)
@@ -269,7 +284,7 @@ def generate_launch_description():
                     'config_file': bridge_path,
                     'use_sim_time': use_sim_time_val,
                 }],
-                output='screen',
+                **bridge_kw,
             ),
             Node(
                 package='usv_sim_full',
@@ -279,10 +294,11 @@ def generate_launch_description():
                     'odom_topic': f'/{rn}/odom',
                     'use_sim_time': use_sim_time_val,
                 }],
-                output='screen',
+                **odom_kw,
             ),
         ]
         if bridge_on:
+            radar_kw = quiet_ros_node_kwargs(v)
             nodes.append(
                 Node(
                     package='radar_gz_bridge',
@@ -296,7 +312,7 @@ def generate_launch_description():
                         ),
                         'use_sim_time': use_sim_time_val,
                     }],
-                    output='screen',
+                    **radar_kw,
                 )
             )
         return nodes
@@ -311,11 +327,12 @@ def generate_launch_description():
         actual_path = obstacle_layout_path.perform(context)
 
         if actual_path and actual_path.strip():  # 如果路径不为空
+            v = verbose_launch.perform(context)
+            obs_kw = quiet_ros_node_kwargs(v, [actual_path])
             obstacle_spawner_process = Node(
                 package='usv_sim_full',
                 executable='obstacle_spawner',
-                arguments=[actual_path],
-                output='screen'
+                **obs_kw,
             )
             return [obstacle_spawner_process]
         else:
@@ -331,6 +348,8 @@ def generate_launch_description():
         robot_name_str = robot_name.perform(context)
         use_sim_time_val = use_sim_time.perform(context).lower() == 'true'
         localization_params = localization_params_file.perform(context)
+        v = verbose_launch.perform(context)
+        loc_kw = quiet_ros_node_kwargs(v)
 
         gps_topic = f'/{robot_name_str}/sensors/gps/gps_sensor/data'
         imu_topic = f'/{robot_name_str}/sensors/imu/imu_sensor/data'
@@ -352,8 +371,8 @@ def generate_launch_description():
                 ('odometry/filtered', odom_topic),
                 ('odometry/gps', odom_gps_topic),
             ],
-            output='screen',
-            condition=IfCondition(enable_robot_localization)
+            condition=IfCondition(enable_robot_localization),
+            **loc_kw,
         )
 
         ekf_map_node = Node(
@@ -374,8 +393,8 @@ def generate_launch_description():
             remappings=[
                 ('odometry/filtered', odom_global_topic),
             ],
-            output='screen',
-            condition=IfCondition(enable_robot_localization)
+            condition=IfCondition(enable_robot_localization),
+            **loc_kw,
         )
 
         return [navsat_node, ekf_map_node]
@@ -412,6 +431,7 @@ def generate_launch_description():
         enable_obstacle_spawner_arg,
         create_entity_delay_arg,
         gz_world_name_arg,
+        verbose_launch_arg,
         OpaqueFunction(function=launch_delayed_create_entity),
         OpaqueFunction(function=launch_obstacle_spawner),  # 障碍物生成器（条件启动）
         robot_scoped_group,

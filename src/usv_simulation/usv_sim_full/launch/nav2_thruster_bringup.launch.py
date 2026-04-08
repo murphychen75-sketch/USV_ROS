@@ -2,12 +2,24 @@ import os
 import tempfile
 import yaml
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess, LogInfo, GroupAction, OpaqueFunction
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    ExecuteProcess,
+    LogInfo,
+    GroupAction,
+    OpaqueFunction,
+    SetEnvironmentVariable,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import PushRosNamespace, Node
 from ament_index_python.packages import get_package_share_directory
-from usv_sim_full.launch_config_helpers import default_radar_nav2_param_yaml
+from usv_sim_full.launch_config_helpers import (
+    default_radar_nav2_param_yaml,
+    launch_verbose_enabled,
+    quiet_ros_node_kwargs,
+)
 
 
 def _nav2_params_subst_robot_ns(obj, ns: str):
@@ -32,26 +44,38 @@ def generate_launch_description():
     namespace = LaunchConfiguration('namespace')
     params_file = LaunchConfiguration('params_file')
     use_sim_time = LaunchConfiguration('use_sim_time')
+    verbose_launch = LaunchConfiguration('verbose_launch')
 
-    # 0. 将全局 /tf 转发到 /<namespace>/tf，确保命名空间化 Nav2 可以接收 TF。
-    tf_relay_node = Node(
-        package='usv_sim_full',
-        executable='tf_namespace_relay',
-        name='tf_namespace_relay',
-        namespace=namespace,
-        parameters=[{
-            'namespace': namespace,
-            'use_sim_time': use_sim_time,
-        }],
-        output='screen'
-    )
+    def launch_tf_relay_node(context, *args, **kwargs):
+        v = verbose_launch.perform(context)
+        return [
+            Node(
+                package='usv_sim_full',
+                executable='tf_namespace_relay',
+                name='tf_namespace_relay',
+                namespace=namespace,
+                parameters=[{
+                    'namespace': namespace,
+                    'use_sim_time': use_sim_time,
+                }],
+                **quiet_ros_node_kwargs(v),
+            )
+        ]
 
     def _launch_nav2_with_namespaced_map(context, *args, **kwargs):
         raw_ns = namespace.perform(context).strip().strip('/')
         resolved_params_file = params_file.perform(context)
         resolved_use_sim_time = use_sim_time.perform(context)
+        v_launch = verbose_launch.perform(context)
 
         prefix_logs = []
+        if not launch_verbose_enabled(v_launch):
+            prefix_logs.append(
+                SetEnvironmentVariable(
+                    name='RCUTILS_LOGGING_SEVERITY',
+                    value='WARN',
+                )
+            )
         if not raw_ns:
             resolved_ns = 'usv_1'
             prefix_logs.append(
@@ -119,22 +143,27 @@ def generate_launch_description():
 
         return [*prefix_logs, info, stack]
 
-    # 2. 启动手写的 "cmd_vel 转底层双桨" 桥接脚本
-    thruster_bridge_node = ExecuteProcess(
-        cmd=[
-            'ros2',
-            'run',
-            'usv_sim_full',
-            'cmd_vel_to_thruster',
-            '--ros-args',
-            '-r',
-            ['__ns:=/', namespace],
-            '-p',
-            ['namespace:=', namespace],
-        ],
-        name='cmd_vel_to_thruster',
-        output='screen'
-    )
+    def launch_thruster_bridge(context, *args, **kwargs):
+        ns = namespace.perform(context).strip().strip('/')
+        v = verbose_launch.perform(context)
+        out = 'screen' if launch_verbose_enabled(v) else 'log'
+        return [
+            ExecuteProcess(
+                cmd=[
+                    'ros2',
+                    'run',
+                    'usv_sim_full',
+                    'cmd_vel_to_thruster',
+                    '--ros-args',
+                    '-r',
+                    f'__ns:=/{ns}',
+                    '-p',
+                    f'namespace:={ns}',
+                ],
+                name='cmd_vel_to_thruster',
+                output=out,
+            )
+        ]
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -155,9 +184,14 @@ def generate_launch_description():
             default_value='true',
             description='Use simulation clock'
         ),
-        tf_relay_node,
+        DeclareLaunchArgument(
+            'verbose_launch',
+            default_value='false',
+            description='true：TF 中继与 cmd_vel→桨 进程输出到终端；false：写入日志文件'
+        ),
+        OpaqueFunction(function=launch_tf_relay_node),
         LogInfo(msg=['Starting Nav2 navigation stack for ', namespace, '...']),
         OpaqueFunction(function=_launch_nav2_with_namespaced_map),
         LogInfo(msg=['Starting cmd_vel to thruster bridge for ', namespace, '...']),
-        thruster_bridge_node
+        OpaqueFunction(function=launch_thruster_bridge),
     ])

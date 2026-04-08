@@ -13,7 +13,7 @@ import os
 import tempfile
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import IncludeLaunchDescription
 from launch.substitutions import LaunchConfiguration
@@ -24,7 +24,11 @@ import subprocess
 from usv_sim_full.launch_config_helpers import (
     block_first_maritime_radar,
     block_has_maritime_radar,
+    ground_truth_gazebo_visual_enabled,
+    launch_verbose_enabled,
+    merge_ground_truth_gazebo_models_params,
     parse_session_json_from_stdout,
+    quiet_ros_node_kwargs,
     resolve_ground_truth_user_params_path,
     resolve_session_robots,
     scenario_ground_truth_sim_config,
@@ -37,20 +41,30 @@ from usv_sim_full.launch_config_helpers import (
 def launch_setup(context, *args, **kwargs):
     pkg_share = get_package_share_directory('usv_sim_full')
     config_path = LaunchConfiguration('config_path').perform(context)
+    verbose_s = LaunchConfiguration('verbose_launch').perform(context)
 
     with open(config_path, 'r') as f:
         user_config = yaml.safe_load(f)
 
     try:
-        result = subprocess.run([
+        sm_cmd = [
             session_manager_executable_path(),
             '--config-path', config_path,
-        ], capture_output=True, text=True, check=True)
+        ]
+        if launch_verbose_enabled(verbose_s):
+            sm_cmd.append('--verbose')
+        result = subprocess.run(sm_cmd, capture_output=True, text=True, check=True)
 
         session_output = result.stdout.strip()
-        print(f"Full session manager output: '{session_output}'")
-
         session_info = parse_session_json_from_stdout(session_output)
+        if launch_verbose_enabled(verbose_s):
+            print(f"Full session manager output: '{session_output}'")
+        else:
+            n_robots = len(session_info.get('robots') or [])
+            print(
+                f'[test_hull] session_manager OK: {n_robots} robot(s), '
+                f'session_dir={session_info.get("session_path", "?")}'
+            )
     except subprocess.CalledProcessError as e:
         print(f"Session manager failed with error: {e}")
         print(f"Stdout: {e.stdout}")
@@ -64,14 +78,25 @@ def launch_setup(context, *args, **kwargs):
     ship_blocks = ship_config_blocks(user_config)
     obstacle_layout_path = session_info.get('obstacle_layout_path', '')
     rviz_config_path = session_info['rviz_config_path']
+    # test_hull 固定加载 simple_water.sdf，Gazebo 世界名须与 robot_bringup 的 gz_world_name 一致
+    test_hull_gz_world = 'simple_water'
 
     simple_world_path = os.path.join(pkg_share, 'test_env', 'simple_water.sdf')
+    gz_out = 'screen' if launch_verbose_enabled(verbose_s) else 'log'
     gz_sim_process = ExecuteProcess(
         cmd=['gz', 'sim', '-r', simple_world_path],
-        output='screen'
+        output=gz_out
     )
 
-    launch_items = [gz_sim_process]
+    launch_items = []
+    if not launch_verbose_enabled(verbose_s):
+        launch_items.append(
+            SetEnvironmentVariable(
+                name='RCUTILS_LOGGING_SEVERITY',
+                value='WARN',
+            )
+        )
+    launch_items.append(gz_sim_process)
 
     for idx, ship in enumerate(session_robots):
         block = ship_blocks[idx] if idx < len(ship_blocks) else {}
@@ -107,6 +132,7 @@ def launch_setup(context, *args, **kwargs):
                 'P': str(pe[4]),
                 'Y': str(pe[5]),
                 'use_sim_time': 'true',
+                'verbose_launch': verbose_s,
             }.items()
         )
         launch_items.append(bringup)
@@ -128,17 +154,40 @@ def launch_setup(context, *args, **kwargs):
                 executable='ground_truth_node',
                 name='scenario_ground_truth_node',
                 parameters=gt_params,
-                output='screen',
+                **quiet_ros_node_kwargs(verbose_s),
             )
         )
+        if ground_truth_gazebo_visual_enabled(scen_gt_cfg):
+            tt = str(scen_gt_cfg.get('tracks_topic') or 'sim/ground_truth').strip()
+            if tt.startswith('/'):
+                tt = tt.lstrip('/')
+            prefix = str(scen_gt_cfg.get('gazebo_model_prefix') or 'gt_ctrv_').strip()
+            if not prefix:
+                prefix = 'gt_ctrv_'
+            gz_spawn_delay = float(scen_gt_cfg.get('spawn_delay_sec', 10.0))
+            gz_svc_wait = float(scen_gt_cfg.get('world_service_wait_sec', 1.0))
+            gz_params = merge_ground_truth_gazebo_models_params(
+                test_hull_gz_world, scen_gt_cfg, tt, prefix, gz_spawn_delay, gz_svc_wait
+            )
+            launch_items.append(
+                Node(
+                    package='ground_truth_sim',
+                    executable='ground_truth_gazebo_models_node',
+                    name='scenario_ground_truth_gazebo_models',
+                    parameters=[
+                        {'use_sim_time': True},
+                        gz_params,
+                    ],
+                    **quiet_ros_node_kwargs(verbose_s),
+                )
+            )
 
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
-        arguments=['-d', rviz_config_path],
         parameters=[{'use_sim_time': True}],
-        output='screen'
+        **quiet_ros_node_kwargs(verbose_s, ['-d', rviz_config_path]),
     )
     launch_items.append(rviz_node)
 
@@ -158,5 +207,10 @@ def generate_launch_description():
 
     return LaunchDescription([
         config_path_arg,
+        DeclareLaunchArgument(
+            'verbose_launch',
+            default_value='false',
+            description='true：详细终端输出；false（默认）：降噪'
+        ),
         OpaqueFunction(function=launch_setup)
     ])

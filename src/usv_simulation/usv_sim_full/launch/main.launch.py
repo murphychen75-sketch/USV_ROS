@@ -18,7 +18,12 @@ import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    OpaqueFunction,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -32,8 +37,12 @@ from usv_sim_full.launch_config_helpers import (
     build_mmwave_4d_cloud_parameters,
     iter_all_block_sensors,
     load_mmwave_sensor_defaults,
+    launch_verbose_enabled,
     mmwave_bridge_topics,
     parse_session_json_from_stdout,
+    ground_truth_gazebo_visual_enabled,
+    merge_ground_truth_gazebo_models_params,
+    quiet_ros_node_kwargs,
     resolve_ground_truth_user_params_path,
     resolve_session_robots,
     scenario_ground_truth_sim_config,
@@ -45,6 +54,7 @@ from usv_sim_full.launch_config_helpers import (
 
 def launch_setup(context, *args, **kwargs):
     config_path = LaunchConfiguration('config_path').perform(context)
+    verbose_s = LaunchConfiguration('verbose_launch').perform(context)
     enable_robot_localization = LaunchConfiguration('enable_robot_localization').perform(
         context
     )
@@ -73,15 +83,24 @@ def launch_setup(context, *args, **kwargs):
             mmwave_enabled = True
 
     try:
-        result = subprocess.run([
+        sm_cmd = [
             session_manager_executable_path(),
             '--config-path', config_path,
-        ], capture_output=True, text=True, check=True)
+        ]
+        if launch_verbose_enabled(verbose_s):
+            sm_cmd.append('--verbose')
+        result = subprocess.run(sm_cmd, capture_output=True, text=True, check=True)
 
         session_output = result.stdout.strip()
-        print(f"Full session manager output: '{session_output}'")
-
         session_info = parse_session_json_from_stdout(session_output)
+        if launch_verbose_enabled(verbose_s):
+            print(f"Full session manager output: '{session_output}'")
+        else:
+            n_robots = len(session_info.get('robots') or [])
+            print(
+                f'[usv_sim_full] session_manager OK: {n_robots} robot(s), '
+                f'session_dir={session_info.get("session_path", "?")}'
+            )
         rviz_config_path = session_info['rviz_config_path']
         obstacle_layout_path = session_info['obstacle_layout_path']
 
@@ -153,11 +172,20 @@ def launch_setup(context, *args, **kwargs):
             '/launch/components/infra_sim.launch.py'
         ]),
         launch_arguments={
-            'world_name': world_name
+            'world_name': world_name,
+            'verbose_launch': verbose_s,
         }.items()
     )
 
-    launch_items = [infra_sim_include]
+    launch_items = []
+    if not launch_verbose_enabled(verbose_s):
+        launch_items.append(
+            SetEnvironmentVariable(
+                name='RCUTILS_LOGGING_SEVERITY',
+                value='WARN',
+            )
+        )
+    launch_items.append(infra_sim_include)
 
     # session.rviz 的 Fixed Frame 为 map；发布 map->{robot}/odom，否则点云/相机等无法变换到 map
     for ship in session_robots:
@@ -168,12 +196,18 @@ def launch_setup(context, *args, **kwargs):
                 package='tf2_ros',
                 executable='static_transform_publisher',
                 name=f'map_to_odom_tf_{sanitized}',
-                arguments=[
-                    '0', '0', '0', '0', '0', '0',
-                    'map', f'{sanitized}/odom',
-                ],
+                # use_sim_time 须与 Gazebo /clock 一致，否则 TF 墙钟戳与 Nav2 仿真时刻不一致
+                parameters=[{'use_sim_time': True}],
                 condition=IfCondition(LaunchConfiguration('use_static_map_odom_tf')),
-                output='screen',
+                **quiet_ros_node_kwargs(
+                    verbose_s,
+                    [
+                        '--frame-id',
+                        'map',
+                        '--child-frame-id',
+                        f'{sanitized}/odom',
+                    ],
+                ),
             )
         )
 
@@ -212,6 +246,7 @@ def launch_setup(context, *args, **kwargs):
                 'P': str(pe[4]),
                 'Y': str(pe[5]),
                 'use_sim_time': 'true',
+                'verbose_launch': verbose_s,
             }.items()
         )
         launch_items.append(robot_launch)
@@ -233,9 +268,33 @@ def launch_setup(context, *args, **kwargs):
                 executable='ground_truth_node',
                 name='scenario_ground_truth_node',
                 parameters=gt_params,
-                output='screen',
+                **quiet_ros_node_kwargs(verbose_s),
             )
         )
+        if ground_truth_gazebo_visual_enabled(scen_gt_cfg):
+            tt = str(scen_gt_cfg.get('tracks_topic') or 'sim/ground_truth').strip()
+            if tt.startswith('/'):
+                tt = tt.lstrip('/')
+            prefix = str(scen_gt_cfg.get('gazebo_model_prefix') or 'gt_ctrv_').strip()
+            if not prefix:
+                prefix = 'gt_ctrv_'
+            gz_spawn_delay = float(scen_gt_cfg.get('spawn_delay_sec', 10.0))
+            gz_svc_wait = float(scen_gt_cfg.get('world_service_wait_sec', 1.0))
+            gz_params = merge_ground_truth_gazebo_models_params(
+                world_name, scen_gt_cfg, tt, prefix, gz_spawn_delay, gz_svc_wait
+            )
+            launch_items.append(
+                Node(
+                    package='ground_truth_sim',
+                    executable='ground_truth_gazebo_models_node',
+                    name='scenario_ground_truth_gazebo_models',
+                    parameters=[
+                        {'use_sim_time': True},
+                        gz_params,
+                    ],
+                    **quiet_ros_node_kwargs(verbose_s),
+                )
+            )
 
     mm_defs = load_mmwave_sensor_defaults(config_path, user_config)
     if mmwave_enabled:
@@ -258,7 +317,6 @@ def launch_setup(context, *args, **kwargs):
                         package='usv_mmwave_sim',
                         executable='mmwave_4d_cloud_node',
                         name=f'mmwave_4d_{safe}',
-                        output='screen',
                         parameters=[
                             build_mmwave_4d_cloud_parameters(
                                 mm_defs,
@@ -267,6 +325,7 @@ def launch_setup(context, *args, **kwargs):
                                 f'/{sanitized}/odom',
                             )
                         ],
+                        **quiet_ros_node_kwargs(verbose_s),
                     )
                 )
 
@@ -276,7 +335,8 @@ def launch_setup(context, *args, **kwargs):
             '/launch/components/visualization.launch.py'
         ]),
         launch_arguments={
-            'rviz_config_path': rviz_config_path
+            'rviz_config_path': rviz_config_path,
+            'verbose_launch': verbose_s,
         }.items()
     )
 
@@ -287,10 +347,10 @@ def launch_setup(context, *args, **kwargs):
         package="usv_sim_full",
         executable="scenario_manager_node",
         name="scenario_manager_node",
-        output="screen",
         parameters=[{
             "config_path": config_path
-        }]
+        }],
+        **quiet_ros_node_kwargs(verbose_s),
     )
     launch_items.append(scenario_manager_node)
 
@@ -302,7 +362,6 @@ def launch_setup(context, *args, **kwargs):
             executable='usv_sim_wrapper',
             name=f'usv_sim_wrapper_{sanitized}',
             namespace=rname,
-            output='screen',
             parameters=[{
                 'odom_topic': f'/{sanitized}/odom',
                 'gps_topic': f'/{sanitized}/sensors/gps/gps_sensor/data'
@@ -310,6 +369,7 @@ def launch_setup(context, *args, **kwargs):
             remappings=[
                 ('/usv/state/vessel', f'/{sanitized}/state/vessel'),
             ],
+            **quiet_ros_node_kwargs(verbose_s),
         )
         launch_items.append(wrapper_node)
 
@@ -325,12 +385,12 @@ def launch_setup(context, *args, **kwargs):
                 package='usv_sim_full',
                 executable='usv_env_dynamics',
                 name=f'usv_env_dynamics_{sanitized}',
-                output='screen',
                 parameters=[{
                     'model_name': rname,
                     'k_wind': k_wind,
                     'k_current': k_current,
                 }],
+                **quiet_ros_node_kwargs(verbose_s),
             )
         )
 
@@ -413,6 +473,14 @@ def generate_launch_description():
             description=(
                 '非空时：以此 RViz 配置为底稿（复制到临时文件后再追加雷达栅格/前相机显示），'
                 '不再使用 session_manager 生成的 session.rviz。'
+            ),
+        ),
+        DeclareLaunchArgument(
+            'verbose_launch',
+            default_value='false',
+            description=(
+                'true：各节点输出到终端并保留 session_manager/infra 详细 print 与 INFO 日志；'
+                'false（默认）：降噪（桥接/RViz 等写入 ~/.ros/log，RCUTILS 默认 WARN）'
             ),
         ),
         OpaqueFunction(function=launch_setup)
