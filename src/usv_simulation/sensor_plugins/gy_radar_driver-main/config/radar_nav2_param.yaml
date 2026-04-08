@@ -188,6 +188,12 @@ bt_navigator:
     global_frame: map
     robot_base_frame: __ROBOT_NS__/base_link
     odom_topic: odom
+    # 开启 Groot 监控
+    enable_groot_monitoring: True
+    # 设置 ZMQ 发布者端口（用于发送状态到 Groot）
+    groot_zmq_publisher_port: 1666
+    # 设置 ZMQ 服务器端口（用于接收 Groot 的请求）
+    groot_zmq_server_port: 1667
 
 behavior_server:
   ros__parameters:

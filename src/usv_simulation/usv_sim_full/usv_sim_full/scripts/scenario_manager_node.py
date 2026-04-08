@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
-import rclpy
-from rclpy.node import Node
-from geometry_msgs.msg import Twist
-from ros_gz_interfaces.srv import SpawnEntity
-from ros_gz_interfaces.msg import EntityFactory
-import yaml
 import math
-import subprocess
 import os
+import subprocess
 import tempfile
+import time
+import yaml
+
+import rclpy
+from geometry_msgs.msg import Twist
+from rclpy.node import Node
+from ros_gz_interfaces.srv import SpawnEntity
 
 class DynamicObstacle:
     def __init__(self, config, node):
@@ -68,20 +69,70 @@ class ScenarioManager(Node):
         
         self.obstacles = []
         
-        # Setup spawn client
+        # 等待 /world/<name>/create 就绪后再生成；超时则走 ros_gz_sim create CLI（仍会做 success 检查）。
+        # 默认等待 10s；机器或世界较慢时可自行调大 _wait_for_world_spawn_service 的 timeout_sec。
         self.spawn_client = self.create_client(SpawnEntity, f'/world/{self.world_name}/create')
-        self.use_spawn_service = self.spawn_client.wait_for_service(timeout_sec=2.0)
+        self.use_spawn_service = self._wait_for_world_spawn_service(timeout_sec=10.0)
         if not self.use_spawn_service:
             self.get_logger().warn(
-                f"Spawn service /world/{self.world_name}/create is unavailable. "
-                "Falling back to ros_gz_sim create CLI."
+                f"在时限内未等到 /world/{self.world_name}/create，将仅用 ros_gz_sim create CLI 尝试生成动态障碍。"
             )
-            
+
         self.spawn_obstacles()
         
         # Timer for kinematic control (10 Hz)
         self.dt = 0.1
         self.timer = self.create_timer(self.dt, self.control_loop)
+
+    def _wait_for_world_spawn_service(self, timeout_sec=10.0) -> bool:
+        srv = f'/world/{self.world_name}/create'
+        deadline = time.monotonic() + timeout_sec
+        attempt = 0
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            wait = min(5.0, max(0.1, remaining))
+            if self.spawn_client.wait_for_service(timeout_sec=wait):
+                self.get_logger().info(f'Gazebo 生成服务已就绪: {srv}')
+                return True
+            attempt += 1
+            if attempt % 2 == 0:
+                self.get_logger().warn(
+                    f'仍在等待 {srv}（Gazebo 世界加载中），剩余约 {remaining:.0f}s …'
+                )
+        return False
+
+    def _spawn_dynamic_obstacle_via_service(self, obs, obstacle_sdf) -> bool:
+        req = SpawnEntity.Request()
+        req.entity_factory.name = obs.name
+        req.entity_factory.sdf = obstacle_sdf
+        req.entity_factory.allow_renaming = True
+        if len(obs.waypoints) > 0:
+            req.entity_factory.pose.position.x = float(obs.waypoints[0][0])
+            req.entity_factory.pose.position.y = float(obs.waypoints[0][1])
+            req.entity_factory.pose.position.z = 0.5
+
+        future = self.spawn_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=60.0)
+        if not future.done():
+            self.get_logger().error(
+                f'动态障碍 {obs.name}：调用 {self.world_name}/create 超时，未收到响应。'
+            )
+            return False
+        try:
+            resp = future.result()
+        except Exception as exc:
+            self.get_logger().error(f'动态障碍 {obs.name}：spawn 服务异常: {exc}')
+            return False
+        if not resp.success:
+            self.get_logger().error(
+                f'动态障碍 {obs.name}：Gazebo 拒绝生成（success=false）。'
+                '请检查终端 Gazebo 报错、world_name 是否与 environment.world_name 一致、SDF 是否合法。'
+            )
+            return False
+        self.get_logger().info(
+            f"动态障碍已插入仿真：配置名='{obs.requested_name}'，实体名='{obs.name}'（服务返回 success）。"
+        )
+        return True
 
     def get_color_rgba(self, color_name):
         colors = {
@@ -134,9 +185,6 @@ class ScenarioManager(Node):
                 <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl">
                     <topic>/model/{name}/cmd_vel</topic>
                 </plugin>
-                <plugin filename="libignition-gazebo-velocity-control-system.so" name="ignition::gazebo::systems::VelocityControl">
-                    <topic>/model/{name}/cmd_vel</topic>
-                </plugin>
             </model>
         </sdf>
         """
@@ -153,21 +201,13 @@ class ScenarioManager(Node):
                 f"waypoints={obs.waypoints}, speed={obs.speed}"
             )
 
+            spawned = False
             if self.use_spawn_service:
-                req = SpawnEntity.Request()
-                req.entity_factory.name = obs.name
-                req.entity_factory.sdf = obstacle_sdf
-                req.entity_factory.allow_renaming = True
-
-                # Set initial pose
-                if len(obs.waypoints) > 0:
-                    req.entity_factory.pose.position.x = float(obs.waypoints[0][0])
-                    req.entity_factory.pose.position.y = float(obs.waypoints[0][1])
-                    req.entity_factory.pose.position.z = 0.5
-
-                self.spawn_client.call_async(req)
-                self.get_logger().info(f"Spawned dynamic obstacle via service: {obs.name}")
-            else:
+                spawned = self._spawn_dynamic_obstacle_via_service(obs, obstacle_sdf)
+            if not spawned:
+                self.get_logger().warn(
+                    f"动态障碍 {obs.name}：服务路径未成功，改用 ros_gz_sim create CLI。"
+                )
                 self._spawn_with_create_cli(obs, obstacle_sdf)
 
     def _spawn_with_create_cli(self, obs, obstacle_sdf):
@@ -193,10 +233,13 @@ class ScenarioManager(Node):
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
-                self.get_logger().info(f"Spawned dynamic obstacle via CLI: {obs.name}")
+                self.get_logger().info(
+                    f"动态障碍已通过 CLI 插入：'{obs.name}'（ros_gz_sim create）。"
+                )
             else:
+                detail = (result.stderr or result.stdout or '').strip()
                 self.get_logger().error(
-                    f"Failed to spawn {obs.name} via CLI (code={result.returncode}): {result.stderr}"
+                    f"CLI 生成 {obs.name} 失败（code={result.returncode}）：{detail}"
                 )
         except Exception as exc:
             self.get_logger().error(f"Exception while spawning {obs.name} via CLI: {exc}")

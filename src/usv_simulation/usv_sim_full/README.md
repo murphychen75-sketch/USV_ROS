@@ -15,7 +15,7 @@
 ## 依赖（与 launch 强相关）
 
 构建本包前请确保工作区已包含并可编译：`wamv_gazebo`、`wamv_description`（经 `wamv_gazebo` 等间接使用）、`ros_gz_sim`、`ros_gz_bridge`、`usv_interfaces`、`usv_mmwave_sim`（毫米波插件 + 点云增强节点）、`radar_gz_bridge`（海事雷达 spokes→ROS）、`robot_localization`（可选）。  
-**海事雷达建图**依赖 `gy_radar_driver`；**在已运行仿真中 spawn 毫米波探针**依赖 `usv_mmwave_sim`（见 `spawn_mmwave_probe_in_running_sim.launch.py`）。
+**海事雷达建图**依赖 `gy_radar_driver`；**在已运行仿真中 spawn 毫米波探针**依赖 `usv_mmwave_sim`（直接 `ros2 launch usv_mmwave_sim spawn_ego_mmwave_validation.launch.py`，参数见该文件）。
 
 ## 安装与构建
 
@@ -33,13 +33,11 @@ source install/setup.bash
 
 | 文件 | 作用 |
 |------|------|
-| `launch/main.launch.py` | **唯一全量主入口**：`session_manager` → `infra_sim` + 每船 `robot_bringup`（海事雷达桥按块开关）；静态 `map`→`{robot}/odom`；可选 RViz（追加雷达栅格与首船前相机）；每船 `usv_sim_wrapper`；按配置 `enable_env_dynamics` 启 `usv_env_dynamics`；`scenario_manager_node`；毫米波 `mmwave_4d_cloud_node`；海事雷达时 `gy_radar_driver`。参数：`config_path`、`enable_robot_localization`、`localization_params_file`、`localization_start_delay`、`use_static_map_odom_tf`。 |
-| `launch/mmwave_sydney_minimal.launch.py` | 薄封装：默认 `config/mmwave_sydney_minimal.yaml`，其余参数透传 `main.launch.py`，用于毫米波最小场景验证。 |
+| `launch/main.launch.py` | **唯一全量主入口**：`session_manager` → `infra_sim` + 每船 `robot_bringup`（海事雷达桥按块开关）；静态 `map`→`{robot}/odom`；可选 RViz（追加雷达栅格与首船前相机）；每船 `usv_sim_wrapper`；按配置 `enable_env_dynamics` 启 `usv_env_dynamics`；`scenario_manager_node`；毫米波 `mmwave_4d_cloud_node`；海事雷达时 `gy_radar_driver`。参数：`config_path`、`enable_robot_localization`、`localization_params_file`、`localization_start_delay`、`use_static_map_odom_tf`。毫米波最小场景可 `config_path:=$(ros2 pkg prefix usv_sim_full)/share/usv_sim_full/config/mmwave_sydney_minimal.yaml`。 |
 | `launch/nav2_sim_full_bringup.launch.py` | 先启动 `main.launch.py`（整船仿真），**延时**后启动 `nav2_thruster_bringup.launch.py`；可选启动前 `pkill` 清理与 Fast DDS shm 清理。`namespace` 默认 `auto` 时从 YAML 解析首船名。 |
 | `launch/nav2_thruster_bringup.launch.py` | 单船 **Nav2**：`tf_namespace_relay`、改写 `radar_nav2_param.yaml` 中 static_layer 的 `map_topic` 指向 `/{ns}/map/navradar/occupancy_grid`，再 `navigation_launch.py`；并行启动 `cmd_vel_to_thruster`。 |
 | `launch/sensor_tune.launch.py` | **无 Gazebo**：仅 `session_manager` + `robot_state_publisher` + `joint_state_publisher_gui` + `config/tf_tune.rviz`，用于 URDF/TF 与关节在 RViz 中调试。支持 `robot_index` 选择多船中的序号。 |
 | `launch/test_hull.launch.py` | **简化水面** `test_env/simple_water.sdf` + 每船 `robot_bringup` + session 生成的 RViz；用于船体/浮力快速验证。 |
-| `launch/spawn_mmwave_probe_in_running_sim.launch.py` | 在**已运行**的 Gz 世界中额外 spawn 验证体（转调 `usv_mmwave_sim`），用于隔离插件/环境是否有点云。 |
 | `launch/components/infra_sim.launch.py` | 设置 `GZ_SIM_RESOURCE_PATH` / `GAZEBO_MODEL_PATH` / `GZ_SIM_SYSTEM_PLUGIN_PATH`（含 `gz_maritime_radar_plugin`），按 `world_name` 选择 `worlds/<name>.sdf` 或 `.world`，`gz_sim.launch.py` + `global_bridge.yaml`。 |
 | `launch/components/robot_bringup.launch.py` | 单船：延时 `ros_gz_sim create`、`parameter_bridge`、`odom_tf_broadcaster`、可选 `radar_gz_bridge`、可选 `robot_localization`、命名空间内 `robot_state_publisher`、条件 `obstacle_spawner`。 |
 | `launch/components/visualization.launch.py` | `rviz2 -d <session 生成的 rviz>`。 |
@@ -63,8 +61,8 @@ ros2 launch usv_sim_full main.launch.py
 # 指定配置
 ros2 launch usv_sim_full main.launch.py config_path:=/path/to/my.yaml
 
-# 毫米波最小场景（默认 mmwave_sydney_minimal.yaml）
-ros2 launch usv_sim_full mmwave_sydney_minimal.launch.py
+# 毫米波最小场景（config/mmwave_sydney_minimal.yaml）
+ros2 launch usv_sim_full main.launch.py config_path:=$(ros2 pkg prefix usv_sim_full)/share/usv_sim_full/config/mmwave_sydney_minimal.yaml
 
 # 简化水面船体测试
 ros2 launch usv_sim_full test_hull.launch.py
@@ -137,7 +135,7 @@ usv_sim_full/
 
 - **世界找不到**：检查 `environment.world_name` 与 `worlds/` 下文件名是否一致；`infra_sim` 启动时会列出可用 world 名。
 - **海事雷达无数据**：确认 `GZ_SIM_SYSTEM_PLUGIN_PATH` 能加载 `gz_maritime_radar_plugin`；`radar_gz_bridge` 是否启用、`gz` 侧 spokes 话题与 `radar_sensor_name` 一致。
-- **毫米波无点云**：确认 `usv_mmwave_sim` 已编、桥接话题与 `override_topic` 一致；可用 `spawn_mmwave_probe_in_running_sim.launch.py` 对比独立探针话题。
+- **毫米波无点云**：确认 `usv_mmwave_sim` 已编、桥接话题与 `override_topic` 一致；可在已运行仿真中 `ros2 launch usv_mmwave_sim spawn_ego_mmwave_validation.launch.py` 对比独立探针话题。
 - **RViz Fixed Frame 为 map 但无 TF**：`main.launch.py` 中 `use_static_map_odom_tf` 会为每船发布静态 `map`→`{sanitized}/odom`；多实例 launch 时注意勿重复发布同一 TF。
 - **Nav2 无地图**：需海事雷达建图链路产生 `/{namespace}/map/navradar/occupancy_grid`，且 `nav2_thruster_bringup` 中 `namespace` 与船名一致。
 

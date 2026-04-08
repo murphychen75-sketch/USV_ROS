@@ -141,7 +141,7 @@ ros2 launch usv_sim_full sensor_tune.launch.py
 ```bash
 cd /path/to/USV_ROS
 source install/setup.bash
-ros2 launch usv_sim_full mmwave_sydney_minimal.launch.py
+ros2 launch usv_sim_full main.launch.py config_path:=$(ros2 pkg prefix usv_sim_full)/share/usv_sim_full/config/mmwave_sydney_minimal.yaml
 ```
 
 验证点云（船名默认为 `usv_1` 时）：

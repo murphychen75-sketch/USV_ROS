@@ -4,7 +4,7 @@
 须保证启动 gz-sim 的进程已设置 GZ_SIM_SYSTEM_PLUGIN_PATH（含本包 install/.../lib），
 否则新插入的模型无法加载 libusv_4d_radar_plugin.so。整机仿真见 usv_sim_full 的 infra_sim。
 
-由 usv_sim_full/spawn_mmwave_probe_in_running_sim.launch.py 封装常用参数。
+在已运行 Gz 世界中调试时可单独启动本 launch（参数见下方 DeclareLaunchArgument）。
 """
 import os
 import tempfile

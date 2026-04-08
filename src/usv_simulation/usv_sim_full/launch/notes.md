@@ -13,10 +13,14 @@
 | **`main.launch.py`** | **唯一全量仿真主入口**：`session_manager` 解析多船 → **`infra_sim`** → 每船静态 **`map`→`{sanitized}/odom`**（可关）→ **逐船 `robot_bringup`**（海事雷达桥按传感器块开关）；若 **`scenario.ground_truth_sim.enabled`** 则启动全局 **`scenario_ground_truth_node`**（map 系 CTRV 周邻真值）；可选 **RViz**；配置含毫米波时启动 **`mmwave_4d_cloud_node`**；每船 **`usv_sim_wrapper`**；**`enable_env_dynamics`**；**`scenario_manager_node`**；海事雷达时按船 **`gy_radar_driver/radar_controller`**。Launch 参数：`config_path`、`enable_robot_localization`、`localization_params_file`、`localization_start_delay`、`use_static_map_odom_tf`。 |
 | **`nav2_sim_full_bringup.launch.py`** | **仿真 + Nav2 一键 bringup**：可选启动前 `pkill` 清理残留进程；`Include` **`main.launch.py`** 拉起仿真；延时后再 `Include` **`nav2_thruster_bringup.launch.py`**。`namespace` 默认 `auto` 时从 `full_config` 解析主船名。 |
 | **`nav2_thruster_bringup.launch.py`** | **仅导航与控制桥**（假定仿真已在跑）：`tf_namespace_relay`、动态改写 Nav2 代价地图 `map_topic` 指向 `/<ns>/map/navradar/occupancy_grid` 后 `Include` **`nav2_bringup/navigation_launch.py`**，并启动 **`cmd_vel_to_thruster`**。通常由 `nav2_sim_full_bringup` 调用，也可单独对接已运行的仿真。 |
-| **`mmwave_sydney_minimal.launch.py`** | **薄封装**：默认 `config/mmwave_sydney_minimal.yaml`，其余参数与 `main.launch.py` 对齐，内部 **`Include` → `main.launch.py`**。用于悉尼场景下毫米波最小验证，减少命令行长度。 |
-| **`spawn_mmwave_probe_in_running_sim.launch.py`** | **叠加式调试入口**：在 **已运行** 的完整仿真（如 `main.launch.py`）上，再 **`Include` → `usv_mmwave_sim/spawn_ego_mmwave_validation.launch.py`**，独立 spawn 验证体与话题（默认 `/mmwave_spawn_test/points`），不改动主 USV。 |
 | **`sensor_tune.launch.py`** | **无 Gazebo 的 TF/URDF 调参**：`session_manager` + 按 `robot_index` 选船 URDF，将 `model://` 转回 `package://` 后启动 `robot_state_publisher`、`joint_state_publisher_gui`、`rviz2`（`tf_tune.rviz`）。用于关节/连杆可视化调试，**不含仿真与桥接**。 |
 | **`test_hull.launch.py`** | **简化船体/多船 bringup 测试**：固定 **`simple_water`** 世界（`gz sim -r`），按 `session_manager` 多船循环 **`Include` → `components/robot_bringup.launch.py`**（首船启障碍 spawner 等）；会话 RViz 配置驱动 **`rviz2`**。用于验证船体参数与多船 spawn，**非正式比赛/完整世界流程**。 |
+
+**毫米波相关（原独立 launch 已移除）**
+
+- **悉尼毫米波最小场景**：与原先 `mmwave_sydney_minimal.launch.py` 等价，请直接 **`main.launch.py`** 并指定配置，例如（需已 `source install/setup.bash`）：  
+  `ros2 launch usv_sim_full main.launch.py config_path:=$(ros2 pkg prefix usv_sim_full)/share/usv_sim_full/config/mmwave_sydney_minimal.yaml`
+- **在已运行仿真中 spawn 毫米波验证体**：请直接调用 **`usv_mmwave_sim`** 包内 **`spawn_ego_mmwave_validation.launch.py`**（参数见该文件内 `DeclareLaunchArgument`），不再经本目录封装。
 
 ---
 
@@ -234,7 +238,10 @@ flowchart TB
 source install/setup.bash
 ros2 launch usv_sim_full main.launch.py
 ros2 launch usv_sim_full nav2_sim_full_bringup.launch.py
-ros2 launch usv_sim_full mmwave_sydney_minimal.launch.py
+# 毫米波最小场景示例：
+# ros2 launch usv_sim_full main.launch.py config_path:=$(ros2 pkg prefix usv_sim_full)/share/usv_sim_full/config/mmwave_sydney_minimal.yaml
 ```
 
 参数以各文件内 `DeclareLaunchArgument` 为准；`config_path` 多为核心开关。
+
+
