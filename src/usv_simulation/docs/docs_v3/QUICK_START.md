@@ -178,7 +178,7 @@ Nav2 默认参数随包安装（`share/usv_sim_full/config/radar_nav2_param.yaml
 ```bash
 docker build -f src/usv_simulation/docker/Dockerfile.humble2harmonic_nav2 -t xyjy949/humble2harmonic:nav2 .
 ```
-
+ssh-keygen -t ed25519 -C "murphychen75@gmail.com" -f ~/.ssh/id_ed25519_new
 ---
 
 ## 2) 怎么配 (`full_config.yaml`)

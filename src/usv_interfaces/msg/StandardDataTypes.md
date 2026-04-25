@@ -29,7 +29,8 @@
 关键字段（以 `marine_sensor_msgs/RadarSector` 常见定义为准，版本差异请以安装的包为准）：
 - `std_msgs/Header header` — 时间戳与 `frame_id`（例如 `nav_radar_link`）
 - `float64 angle_start` — 扇区起始角（rad）
-- `float64 angle_increment` — 每个角度采样的增量（rad）
+- `float64 angle_in
+crement` — 每个角度采样的增量（rad）
 - `builtin_interfaces/Duration time_increment` — 每个样本之间的时间间隔（可为 0）
 - `builtin_interfaces/Duration scan_time` — 完整扫描周期（例如 2.5s）
 - `float32 range_min` — 最小测距（m）

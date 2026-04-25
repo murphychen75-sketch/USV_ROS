@@ -1,4 +1,4 @@
-# 工作区级 CI：编译仿真主线（含依赖树），不构建可选 overlay（如 AIS / BEV）。
+# 工作区级 CI：拆分仿真主线与通信主线，避免不同层级互相耦合。
 name: CI
 
 on:
@@ -40,3 +40,42 @@ jobs:
           source /opt/ros/humble/setup.bash
           cd ${{ github.workspace }}
           ./scripts/clean_build.sh --packages-up-to usv_sim_full
+
+  build-comm:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup ROS 2 Humble
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: humble
+
+      - name: Install colcon / rosdep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-colcon-common-extensions \
+            python3-rosdep
+
+      - name: rosdep (usv_interfaces + usv_comm)
+        run: |
+          sudo rosdep init || true
+          rosdep update
+          rosdep install --from-paths src/usv_interfaces src/usv_comm --ignore-src -r -y
+
+      - name: colcon build (communication packages)
+        run: |
+          source /opt/ros/humble/setup.bash
+          cd ${{ github.workspace }}
+          ./scripts/clean_build.sh --packages-select usv_mqtt_bridge usv_mavlink_bridge
+
+      - name: colcon test (usv_mqtt_bridge)
+        run: |
+          source /opt/ros/humble/setup.bash
+          cd ${{ github.workspace }}
+          source install/setup.bash
+          colcon test --packages-select usv_mqtt_bridge
+          colcon test-result --verbose

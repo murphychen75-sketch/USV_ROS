@@ -2,6 +2,10 @@
 
 一个基于 `ROS 2 Python + paho-mqtt` 的轻量桥接节点，用于把 USV 内部 ROS 2 主题转换为 MQTT 上行遥测，并把云端 MQTT 下行消息转发回 ROS 2。
 
+## 包定位
+
+`usv_mqtt_bridge` 位于 `src/usv_comm/` 通信层，负责外部 MQTT 协议适配，不承担项目内部接口定义。内部统一语义接口由 `src/usv_interfaces/` 提供。
+
 ## 节点组成
 
 当前 MQTT 节点由以下几个部分组成：
@@ -22,6 +26,8 @@
   - 节流控制模块，用于限制 `state`、`vision`、`radar` 的上云频率。
 - `usv_mqtt_bridge/command_dispatcher.py`
   - 下行消息分发模块，负责校验 `control/config` 消息并转发为 ROS 2 侧输出。
+- `docs/message_contract.md`
+  - 说明 MQTT 外发消息格式、内部接口话题以及字段/结构映射关系。
 - `scripts/publish_state_test.py`
   - 状态上报测试脚本，用于向 `/usv/state` 持续发布模拟数据，验证桥接链路。
 

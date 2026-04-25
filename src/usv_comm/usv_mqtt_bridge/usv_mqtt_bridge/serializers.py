@@ -63,7 +63,9 @@ def split_payload_and_timestamps(raw_data: Any) -> Tuple[Any, Optional[Mapping[s
         return raw_data, None
 
     timestamps = raw_data.get("timestamps")
-    if "payload" in raw_data and isinstance(raw_data.get("payload"), (Mapping, list, str, int, float, bool, type(None))):
+    if "payload" in raw_data and isinstance(
+        raw_data.get("payload"), (Mapping, list, str, int, float, bool, type(None))
+    ):
         return raw_data["payload"], timestamps
 
     payload = dict(raw_data)

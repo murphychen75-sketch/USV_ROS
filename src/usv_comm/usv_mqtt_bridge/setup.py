@@ -13,6 +13,7 @@ setup(
         (f"share/{package_name}", ["package.xml"]),
         (f"share/{package_name}/config", ["config/params.yaml"]),
         (f"share/{package_name}/launch", ["launch/usv_mqtt_bridge.launch.py"]),
+        (f"share/{package_name}/docs", ["docs/message_contract.md"]),
     ],
     install_requires=["setuptools", "paho-mqtt>=1.6"],
     zip_safe=True,
