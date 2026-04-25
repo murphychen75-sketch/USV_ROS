@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>usv_mqtt_bridge</name>
+  <version>0.1.0</version>
+  <description>ROS 2 MQTT bridge node for USV telemetry and commands.</description>
+  <maintainer email="cursor@example.com">Cursor</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-paho-mqtt</exec_depend>
+
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

@@ -21,36 +21,14 @@ obstacles:
 # 动态障碍 → scenario_manager_node（航路点巡逻）；world_name 须与 environment 一致。
 # ground_truth_sim：CTRV 周邻真值（map）；gazebo_visual 时在 Gazebo 生成同尺寸柱状实体（见文档）。
 scenario:
-  dynamic_obstacles:
-  - name: patrol_boat_1
-    shape: cylinder
-    # 可选：[半径, 高度]（米）；见 full_config.reference.yaml
-    size: [0.45, 1.0]
-    color: Yellow
-    speed: 2.0
-    loop: true
-    waypoints:
-    - - 20.0
-      - 0.0
-    - - 20.0
-      - 30.0
-  - name: patrol_boat_2
-    shape: cylinder
-    size: [0.45, 1.0]
-    color: Red
-    speed: 3.0
-    loop: true
-    waypoints:
-    - - 0.0
-      - 10.0
-    - - 30.0
-      - 10.0
+  dynamic_obstacles: []
   ground_truth_sim:
     enabled: true
     gazebo_visual:  true
     spawn_delay_sec: 10.0
-    # 真值 Gazebo 尺寸：默认长方体与 size_l/w/h 一致（gazebo_target_geometry: box）；0 表示不限制 cap
-    gazebo_target_geometry: box
+    # 真值 Gazebo 外形：采用 10m.dae 的 mesh_profile，由 ground_truth_gazebo_models_node 生成实体
+    gazebo_target_geometry: mesh_profile
+    gazebo_mesh_profile: ../description/models/target_ship/10m_mesh_profile.yaml
     cylinder_radius_cap_m: 4.0
     cylinder_height_cap_m: 5.0
     # 围栏（map 轴对齐矩形）：越界则从真值话题消失；开 gazebo_visual 时 Gazebo 模型同步被 remove
@@ -78,6 +56,12 @@ scenario:
     target_count: 5
     annulus_radius_min: 50.0
     annulus_radius_max: 300.0
+    size_width_min: 3.6
+    size_width_max: 3.6
+    size_length_min: 10.0
+    size_length_max: 10.0
+    size_height_min: 2.0
+    size_height_max: 2.0
 # RViz 是否随 main 启动；enable_telemetry 影响 session_manager 桥接生成。
 visualization:
   launch_rviz: true

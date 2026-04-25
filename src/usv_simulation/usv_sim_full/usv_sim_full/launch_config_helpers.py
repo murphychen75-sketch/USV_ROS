@@ -264,6 +264,7 @@ GROUND_TRUTH_SIM_META_KEYS = frozenset(
         'params_file',
         'gazebo_visual',
         'gazebo_model_prefix',
+        'gazebo_mesh_profile',
         'spawn_delay_sec',
         'world_service_wait_sec',
         # 仅 ground_truth_gazebo_models_node 使用，勿写入 ground_truth_node 参数 YAML
@@ -287,6 +288,7 @@ def merge_ground_truth_gazebo_models_params(
     model_prefix: str,
     gz_spawn_delay: float,
     gz_svc_wait: float,
+    full_config_path: str = "",
 ) -> dict:
     """组装 scenario_ground_truth_gazebo_models 的参数字典（含 scenario.ground_truth_sim 中的可选扩展）。"""
     p = {
@@ -303,6 +305,7 @@ def merge_ground_truth_gazebo_models_params(
         'cylinder_radius_cap_m',
         'cylinder_height_cap_m',
         'gazebo_target_geometry',
+        'gazebo_mesh_profile',
         'contact_collide_bitmask',
         'create_cli_timeout_sec',
         'spawn_thread_pool_size',
@@ -312,6 +315,11 @@ def merge_ground_truth_gazebo_models_params(
         v = scen_gt_cfg[k]
         if v is None or v == '':
             continue
+        if k == 'gazebo_mesh_profile' and full_config_path:
+            vp = str(v).strip()
+            if vp and not os.path.isabs(vp):
+                base = os.path.dirname(os.path.abspath(full_config_path))
+                v = os.path.normpath(os.path.join(base, vp))
         p[k] = v
     return p
 

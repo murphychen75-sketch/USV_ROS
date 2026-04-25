@@ -1,0 +1,30 @@
+usv_mqtt_bridge_node:
+  ros__parameters:
+    device_id: "001"
+
+    broker.host: "broker.emqx.io"
+    broker.port: 1883
+    broker.client_id: "usv-mqtt-001-888"
+    broker.username: ""
+    broker.password: ""
+    broker.keepalive_sec: 15
+
+    reconnect.initial_backoff_sec: 1.0
+    reconnect.max_backoff_sec: 30.0
+
+    publish_rates.state_hz: 2.0
+    publish_rates.vision_hz: 10.0
+    publish_rates.radar_hz: 10.0
+
+    ros_topics.state_input_topic: "/usv/state"
+    ros_topics.vision_input_topic: "/usv/vision/metadata"
+    ros_topics.radar_input_topic: "/usv/radar/targets"
+    ros_topics.control_output_topic: "/usv/cmd/control/raw"
+    ros_topics.config_output_topic: "/usv/cmd/config/raw"
+
+    topics.state: "usv/001/telemetry/state"
+    topics.vision: "usv/001/telemetry/vision"
+    topics.radar: "usv/001/telemetry/radar"
+    topics.control: "usv/001/cmd/control"
+    topics.config: "usv/001/cmd/config"
+    topics.status_lwt: "usv/001/status/lwt"

@@ -50,22 +50,30 @@ obstacles:
 # -----------------------------------------------------------------------------
 # dynamic_obstacles[]:
 #   name      — 运行时会变为 dyn_<name>（除非已以 dyn_ 开头），用于 Gazebo 实体与 cmd_vel 话题。
-#   shape     — cylinder（默认）| box；影响生成的 SDF 几何。
+#   shape     — cylinder（默认）| box | mesh_profile；影响生成的 SDF 几何。
 #   color     — 同上静态障碍颜色名。
 #   speed     — 沿航路前进的标量速度（与内部控制逻辑配合）。
 #   loop      — 是否在航路点间往返循环。
 #   waypoints — [[x,y], [x,y], ...]；至少 2 个点才有巡逻运动。
 #   size — 可选。圆柱： [radius, length]；长方体： [sx, sy, sz]。缺省圆柱 r=0.8,h=1.2，长方体 1.2³。
+#   mesh_profile — 当 shape=mesh_profile 时必填；YAML 路径相对当前 full_config 文件解析。
+#     需至少包含：
+#       mesh.uri / mesh.scale / mesh.pose_offset.xyz+rpy
+#       collision_group.pose_offset.xyz+rpy
+#       boxes[].size_lwh_m / boxes[].pose_xyz_m
 #   插入方式 — scenario_manager_node 仅使用 ros_gz_sim create（gz-transport），不依赖 rclpy /world/.../SpawnEntity。
 #
 # ground_truth_sim（可选，与 dynamic_obstacles 同级）:
 #   enabled — true 时 main.launch 启动全局 scenario_ground_truth_node（ground_truth_sim/ground_truth_node）。
 #   gazebo_visual — true 时额外启动 scenario_ground_truth_gazebo_models（ground_truth_gazebo_models_node）：
 #     默认 gazebo_target_geometry: box — 按 size_l×size_w×size_h 生成长方体 SDF，视觉与 collision 同尺寸，并设 contact/collide_bitmask 以参与物理接触；
-#     可选 gazebo_target_geometry: cylinder — 外接圆+高（旧外观）。spawn 用 ros_gz_sim create；位姿用 gz service
+#     可选 gazebo_target_geometry: cylinder — 外接圆+高（旧外观）；
+#     可选 gazebo_target_geometry: mesh_profile — 按 gazebo_mesh_profile YAML 生成 mesh visual + compound collision。
+#     spawn 用 ros_gz_sim create；位姿用 gz service
 #     /world/<world>/set_pose_vector（gz.msgs.Pose_V）；删除用 /world/<world>/remove（gz.msgs.Entity）。
-#     contact_collide_bitmask — 可选整数或 0x 字符串（如 4294967295），与场景其它刚体 bitmask 需有交集才碰撞。
+#     contact_collide_bitmask — 可选整数或 0x 字符串，须 ≤65535（0xFFFF）；更大值会截断。与场景其它刚体 bitmask 需有交集才碰撞。
 #     不依赖 rclpy SpawnEntity/SetEntityPose（Humble 上常与 gz 侧服务端无法匹配）。
+#   gazebo_mesh_profile — 当 gazebo_target_geometry=mesh_profile 时必填；相对当前 full_config 文件解析。
 #   gazebo_model_prefix — 实体名前缀，默认 gt_ctrv_，实体名为 {prefix}{track_id}。
 #   spawn_delay_sec — 节点启动后按时钟（use_sim_time 时为仿真时钟）再延迟该秒数后才 spawn/set_pose（默认 10）。
 #   world_service_wait_sec — 映射为 gz service 调用的超时毫秒（默认 1.0s → 1000 ms）；另可在节点上声明 create_cli_timeout_sec、spawn_thread_pool_size。
@@ -86,22 +94,15 @@ obstacles:
 #   （Nav2 代价地图是否订阅真值：暂缓，由后续需求单独设计，例如 PointCloud2 + voxel_layer。）
 scenario:
   dynamic_obstacles:
-    - name: patrol_boat_1
-      shape: cylinder
+    - name: target_ship_1
+      shape: mesh_profile
+      mesh_profile: ../description/models/target_ship/10m_mesh_profile.yaml
       color: Yellow
       speed: 2.0
       loop: true
       waypoints:
         - [20.0, 0.0]
         - [20.0, 30.0]
-    - name: patrol_boat_2
-      shape: cylinder
-      color: Red
-      speed: 3.0
-      loop: true
-      waypoints:
-        - [0.0, 10.0]
-        - [30.0, 10.0]
   # ground_truth_sim:
   #   enabled: true
   #   gazebo_visual: true

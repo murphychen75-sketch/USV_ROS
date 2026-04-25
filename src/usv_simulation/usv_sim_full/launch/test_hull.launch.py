@@ -167,7 +167,7 @@ def launch_setup(context, *args, **kwargs):
             gz_spawn_delay = float(scen_gt_cfg.get('spawn_delay_sec', 10.0))
             gz_svc_wait = float(scen_gt_cfg.get('world_service_wait_sec', 1.0))
             gz_params = merge_ground_truth_gazebo_models_params(
-                test_hull_gz_world, scen_gt_cfg, tt, prefix, gz_spawn_delay, gz_svc_wait
+                test_hull_gz_world, scen_gt_cfg, tt, prefix, gz_spawn_delay, gz_svc_wait, config_path
             )
             launch_items.append(
                 Node(

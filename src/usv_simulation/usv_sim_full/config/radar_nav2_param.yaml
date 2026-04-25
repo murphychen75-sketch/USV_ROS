@@ -24,6 +24,7 @@ global_costmap:
         
         map_topic: "/map/navradar/occupancy_grid" 
         subscribe_to_updates: true
+        lethal_cost_threshold: 50
       
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"

@@ -11,6 +11,24 @@ import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 
+
+def _fmt_pose_xyzrpy(xyz, rpy):
+    return (
+        f"{float(xyz[0]):.6f} {float(xyz[1]):.6f} {float(xyz[2]):.6f} "
+        f"{float(rpy[0]):.6f} {float(rpy[1]):.6f} {float(rpy[2]):.6f}"
+    )
+
+
+def _as_vec(raw, length, default=0.0):
+    if isinstance(raw, (list, tuple)):
+        vals = [float(v) for v in raw[:length]]
+    else:
+        vals = []
+    if len(vals) < length:
+        vals.extend([float(default)] * (length - len(vals)))
+    return vals
+
+
 class DynamicObstacle:
     def __init__(self, config, node):
         self.requested_name = str(config.get('name', 'obstacle'))
@@ -23,6 +41,8 @@ class DynamicObstacle:
         self.waypoints = config.get('waypoints', [])
         # 可选尺寸：圆柱 [radius, length]；长方体 [sx, sy, sz]（与 obstacles.fixed_list.size 用法一致）
         self.size = config.get('size')
+        self.mesh_profile = config.get('mesh_profile', config.get('profile_path', ''))
+        self.spawn_z = config.get('spawn_z')
 
         self.current_wp_idx = 1 if len(self.waypoints) > 1 else 0
         self.direction = 1 # 1 for forward, -1 for backward
@@ -32,6 +52,12 @@ class DynamicObstacle:
         else:
             self.x = 0.0
             self.y = 0.0
+        if len(self.waypoints) > 1:
+            dx = float(self.waypoints[1][0]) - float(self.waypoints[0][0])
+            dy = float(self.waypoints[1][1]) - float(self.waypoints[0][1])
+            self.spawn_yaw = math.atan2(dy, dx) if abs(dx) + abs(dy) > 1e-9 else 0.0
+        else:
+            self.spawn_yaw = 0.0
             
         self.active = len(self.waypoints) > 1
         
@@ -95,7 +121,139 @@ class ScenarioManager(Node):
         }
         return colors.get(color_name, '1 1 1 1')
 
+    def _resolve_profile_path(self, path_text):
+        p = str(path_text or '').strip()
+        if not p:
+            return ''
+        if os.path.isabs(p):
+            return p
+        base = os.path.dirname(os.path.abspath(
+            self.get_parameter('config_path').get_parameter_value().string_value
+        ))
+        return os.path.normpath(os.path.join(base, p))
+
+    def _load_mesh_profile(self, obs_cfg):
+        profile_path = self._resolve_profile_path(obs_cfg.mesh_profile)
+        if not profile_path or not os.path.isfile(profile_path):
+            raise FileNotFoundError(
+                f"mesh_profile not found for {obs_cfg.name}: {obs_cfg.mesh_profile!r}"
+            )
+        with open(profile_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f) or {}
+        if not isinstance(data, dict):
+            raise RuntimeError(f"Invalid mesh_profile YAML: {profile_path}")
+        mesh = data.get('mesh') or {}
+        if not str(mesh.get('uri', '')).strip():
+            raise RuntimeError(f"mesh_profile missing mesh.uri: {profile_path}")
+        boxes = data.get('boxes') or []
+        if not isinstance(boxes, list) or not boxes:
+            raise RuntimeError(f"mesh_profile missing boxes[]: {profile_path}")
+        return profile_path, data
+
+    def _mesh_profile_min_z(self, profile_data):
+        group = profile_data.get('collision_group') or {}
+        group_xyz = _as_vec((group.get('pose_offset') or {}).get('xyz'), 3, 0.0)
+        min_z = None
+        for box in profile_data.get('boxes') or []:
+            size = _as_vec(box.get('size_lwh_m'), 3, 0.0)
+            pose = _as_vec(box.get('pose_xyz_m'), 3, 0.0)
+            bottom = group_xyz[2] + pose[2] - 0.5 * size[2]
+            min_z = bottom if min_z is None else min(min_z, bottom)
+        return 0.0 if min_z is None else float(min_z)
+
+    def _mesh_profile_spawn_z(self, obs_cfg, profile_data):
+        if obs_cfg.spawn_z is not None:
+            return float(obs_cfg.spawn_z)
+        prof_spawn_z = profile_data.get('spawn_z')
+        if prof_spawn_z is not None:
+            return float(prof_spawn_z)
+        min_z = self._mesh_profile_min_z(profile_data)
+        return max(0.0, -min_z)
+
+    def _generate_mesh_profile_sdf(self, obs_cfg):
+        profile_path, profile_data = self._load_mesh_profile(obs_cfg)
+        mesh = profile_data.get('mesh') or {}
+        mesh_uri = str(mesh.get('uri', '')).strip()
+        mesh_scale = _as_vec(mesh.get('scale'), 3, 1.0)
+        mesh_rgba = _as_vec(mesh.get('material_rgba'), 4, 1.0)
+        mesh_pose = mesh.get('pose_offset') or {}
+        mesh_xyz = _as_vec(mesh_pose.get('xyz'), 3, 0.0)
+        mesh_rpy = _as_vec(mesh_pose.get('rpy'), 3, 0.0)
+
+        collision_group = profile_data.get('collision_group') or {}
+        group_pose = collision_group.get('pose_offset') or {}
+        group_xyz = _as_vec(group_pose.get('xyz'), 3, 0.0)
+        group_rpy = _as_vec(group_pose.get('rpy'), 3, 0.0)
+
+        collision_xml = []
+        for idx, box in enumerate(profile_data.get('boxes') or []):
+            box_name = str(box.get('name') or f'collision_{idx}').strip() or f'collision_{idx}'
+            size = _as_vec(box.get('size_lwh_m'), 3, 0.0)
+            pose_xyz = _as_vec(box.get('pose_xyz_m'), 3, 0.0)
+            pose_rpy = _as_vec(box.get('pose_rpy'), 3, 0.0)
+            world_xyz = [
+                group_xyz[0] + pose_xyz[0],
+                group_xyz[1] + pose_xyz[1],
+                group_xyz[2] + pose_xyz[2],
+            ]
+            world_rpy = [
+                group_rpy[0] + pose_rpy[0],
+                group_rpy[1] + pose_rpy[1],
+                group_rpy[2] + pose_rpy[2],
+            ]
+            collision_xml.append(
+                f"""
+                    <collision name="{box_name}">
+                        <pose>{_fmt_pose_xyzrpy(world_xyz, world_rpy)}</pose>
+                        <geometry>
+                            <box><size>{size[0]:.6f} {size[1]:.6f} {size[2]:.6f}</size></box>
+                        </geometry>
+                    </collision>"""
+            )
+
+        sdf = f"""<?xml version="1.0" ?>
+        <sdf version="1.6">
+            <model name="{obs_cfg.name}">
+                <static>false</static>
+                <link name="base_link">
+                    <gravity>false</gravity>
+                    <visual name="visual">
+                        <pose>{_fmt_pose_xyzrpy(mesh_xyz, mesh_rpy)}</pose>
+                        <geometry>
+                            <mesh>
+                                <uri>{mesh_uri}</uri>
+                                <scale>{mesh_scale[0]:.6f} {mesh_scale[1]:.6f} {mesh_scale[2]:.6f}</scale>
+                            </mesh>
+                        </geometry>
+                        <material>
+                            <ambient>{mesh_rgba[0]:.6f} {mesh_rgba[1]:.6f} {mesh_rgba[2]:.6f} {mesh_rgba[3]:.6f}</ambient>
+                            <diffuse>{mesh_rgba[0]:.6f} {mesh_rgba[1]:.6f} {mesh_rgba[2]:.6f} {mesh_rgba[3]:.6f}</diffuse>
+                            <specular>0.15 0.15 0.10 1.0</specular>
+                        </material>
+                    </visual>
+                    {''.join(collision_xml)}
+                    <inertial>
+                        <mass>50.0</mass>
+                        <inertia>
+                            <ixx>4.0</ixx>
+                            <iyy>4.0</iyy>
+                            <izz>6.0</izz>
+                        </inertia>
+                    </inertial>
+                </link>
+                <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl">
+                    <topic>/model/{obs_cfg.name}/cmd_vel</topic>
+                </plugin>
+            </model>
+        </sdf>
+        """
+        return sdf, profile_path, self._mesh_profile_spawn_z(obs_cfg, profile_data)
+
     def generate_sdf(self, obs_cfg):
+        if obs_cfg.shape == 'mesh_profile':
+            sdf, _, _ = self._generate_mesh_profile_sdf(obs_cfg)
+            return sdf
+
         name = obs_cfg.name
         shape = obs_cfg.shape
         color = self.get_color_rgba(obs_cfg.color)
@@ -169,6 +327,9 @@ class ScenarioManager(Node):
         x = float(obs.waypoints[0][0]) if len(obs.waypoints) > 0 else 0.0
         y = float(obs.waypoints[0][1]) if len(obs.waypoints) > 0 else 0.0
         z = 0.5
+        profile_path = ''
+        if obs.shape == 'mesh_profile':
+            obstacle_sdf, profile_path, z = self._generate_mesh_profile_sdf(obs)
 
         tmp_sdf_path = None
         try:
@@ -183,13 +344,18 @@ class ScenarioManager(Node):
                 '-name', obs.name,
                 '-x', str(x),
                 '-y', str(y),
-                '-z', str(z)
+                '-z', str(z),
+                '-Y', str(obs.spawn_yaw),
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 self.get_logger().info(
                     f"动态障碍已通过 CLI 插入：'{obs.name}'（ros_gz_sim create）。"
                 )
+                if profile_path:
+                    self.get_logger().info(
+                        f"动态障碍 {obs.name} 使用 mesh_profile: {profile_path}"
+                    )
             else:
                 detail = (result.stderr or result.stdout or '').strip()
                 self.get_logger().error(
