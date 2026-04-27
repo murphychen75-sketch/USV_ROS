@@ -1,10 +1,12 @@
 usv_mqtt_bridge_node:
   ros__parameters:
-    device_id: "001"
+    product_id: "M10"
+    device_id: "USV_N0001"
+    unit_id: "JETSON01"
 
-    broker.host: "broker.emqx.io"
+    broker.host: "120.27.206.164"
     broker.port: 1883
-    broker.client_id: "usv-mqtt-001-888"
+    broker.client_id: "usv-mqtt-usv-n0001"
     broker.username: ""
     broker.password: ""
     broker.keepalive_sec: 15
@@ -12,19 +14,49 @@ usv_mqtt_bridge_node:
     reconnect.initial_backoff_sec: 1.0
     reconnect.max_backoff_sec: 30.0
 
-    publish_rates.state_hz: 2.0
-    publish_rates.vision_hz: 10.0
-    publish_rates.radar_hz: 10.0
+    publish_rates.status_hz: 2.0
+    publish_rates.vision_targets_hz: 10.0
+    publish_rates.radar_scan_hz: 10.0
 
-    ros_topics.state_input_topic: "/usv/state"
-    ros_topics.vision_input_topic: "/usv/vision/metadata"
-    ros_topics.radar_input_topic: "/usv/radar/targets"
-    ros_topics.control_output_topic: "/usv/cmd/control/raw"
-    ros_topics.config_output_topic: "/usv/cmd/config/raw"
+    ros_topics.status_input_topic: "/usv/state"
+    ros_topics.status_jetson_input_topic: ""
+    ros_topics.heartbeat_input_topic: ""
+    ros_topics.alarm_input_topic: ""
+    ros_topics.diag_result_input_topic: ""
+    ros_topics.radar_control_input_topic: ""
+    ros_topics.radar_scan_input_topic: "/usv/radar/targets"
+    ros_topics.radar_scan_config_input_topic: ""
+    ros_topics.radar_map_input_topic: ""
+    ros_topics.vision_targets_input_topic: "/usv/vision/metadata"
+    ros_topics.perception_trajectory_input_topic: ""
+    ros_topics.depth_input_topic: ""
+    ros_topics.weather_input_topic: ""
 
-    topics.state: "usv/001/telemetry/state"
-    topics.vision: "usv/001/telemetry/vision"
-    topics.radar: "usv/001/telemetry/radar"
-    topics.control: "usv/001/cmd/control"
-    topics.config: "usv/001/cmd/config"
-    topics.status_lwt: "usv/001/status/lwt"
+    ros_topics.estop_output_topic: ""
+    ros_topics.arm_output_topic: ""
+    ros_topics.mode_output_topic: "/usv/cmd/mode/raw"
+    ros_topics.auto_task_output_topic: ""
+    ros_topics.radar_control_output_topic: "/usv/cmd/radar/control/raw"
+    ros_topics.video_ctrl_output_topic: ""
+    ros_topics.diag_request_output_topic: ""
+
+    topics.status: "/M10/USV_N0001/JETSON01/status"
+    topics.status_jetson: "/M10/USV_N0001/JETSON01/status/jetson"
+    topics.heartbeat: "/M10/USV_N0001/JETSON01/heartbeat"
+    topics.alarm: "/M10/USV_N0001/JETSON01/alarm"
+    topics.diag_result: "/M10/USV_N0001/JETSON01/diag/result"
+    topics.radar_control: "/M10/USV_N0001/JETSON01/radar/control"
+    topics.radar_scan: "/M10/USV_N0001/JETSON01/radar/scan"
+    topics.radar_scan_config: "/M10/USV_N0001/JETSON01/radar/scan_config"
+    topics.radar_map: "/M10/USV_N0001/JETSON01/radar/map"
+    topics.vision_targets: "/M10/USV_N0001/JETSON01/vision/targets"
+    topics.perception_trajectory: "/M10/USV_N0001/JETSON01/perception/trajectory"
+    topics.depth: "/M10/USV_N0001/JETSON01/depth"
+    topics.weather: "/M10/USV_N0001/JETSON01/weather"
+
+    topics.estop: "/M10/USV_N0001/JETSON01/estop"
+    topics.arm: "/M10/USV_N0001/JETSON01/arm"
+    topics.mode: "/M10/USV_N0001/JETSON01/mode"
+    topics.auto_task: "/M10/USV_N0001/JETSON01/auto/task"
+    topics.video_ctrl: "/M10/USV_N0001/JETSON01/video/ctrl"
+    topics.diag_request: "/M10/USV_N0001/JETSON01/diag/request"

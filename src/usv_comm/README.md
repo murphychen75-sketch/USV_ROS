@@ -9,6 +9,12 @@
 - `usv_mqtt_bridge`：ROS 2 <-> MQTT 桥接
 - `usv_mavlink_bridge`：ROS 2 <-> MAVLink 桥接
 
+## 文档入口
+
+- `usv_mqtt_bridge` 主说明：[`usv_mqtt_bridge/README.md`](./usv_mqtt_bridge/README.md)
+- MQTT 协议主文档：[`usv_mqtt_bridge/docs/mqtt_info.md`](./usv_mqtt_bridge/docs/mqtt_info.md)
+- MQTT 实现映射文档：[`usv_mqtt_bridge/docs/message_contract.md`](./usv_mqtt_bridge/docs/message_contract.md)
+
 ## 依赖约束
 
 - `usv_comm/*` 可以依赖 `usv_interfaces`

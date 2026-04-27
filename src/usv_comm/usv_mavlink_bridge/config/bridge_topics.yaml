@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    use_legacy_imu_topic: false
+    use_legacy_gps_topics: false
+    publish_legacy_manual_topic: false
+    publish_legacy_imu_topic: false
+    publish_legacy_gps_topics: false

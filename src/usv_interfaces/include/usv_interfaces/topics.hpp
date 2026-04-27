@@ -40,6 +40,9 @@ namespace usv_interfaces {
     constexpr char TOPIC_CONTROL_DEVIATION[] = "/usv/control/deviation";     // usv_interfaces/ControlDeviation
     constexpr char TOPIC_CONTROL_MODE[]      = "/usv/control/mode";          // usv_interfaces/OperationMode
     constexpr char TOPIC_WAYPOINT_ROUTE[]    = "/usv/control/waypoint_route";// usv_interfaces/WaypointRoute
+    constexpr char TOPIC_AUTOPILOT_STATE[]   = "/usv/state/autopilot";       // mavros_msgs/State (bridge output)
+    constexpr char TOPIC_STATE_VELOCITY[]    = "/usv/state/velocity";        // geometry_msgs/TwistStamped
+    constexpr char TOPIC_CONTROL_MANUAL_RAW[] = "/usv/control/manual/raw";   // geometry_msgs/Twist
 
     // 动态传感器话题模板 (Dynamic Sensor Topic Templates)
     constexpr char TEMPLATE_CAMERA[] = "/sensors/camera/{sensor_name}/image_raw";

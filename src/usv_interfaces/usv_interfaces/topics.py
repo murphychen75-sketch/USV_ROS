@@ -49,6 +49,9 @@ TOPIC_VESSEL_STATE      = "/usv/state/vessel"           # Type: usv_interfaces/V
 TOPIC_CONTROL_DEVIATION = "/usv/control/deviation"      # Type: usv_interfaces/ControlDeviation
 TOPIC_CONTROL_MODE      = "/usv/control/mode"           # Type: usv_interfaces/OperationMode
 TOPIC_WAYPOINT_ROUTE    = "/usv/control/waypoint_route" # Type: usv_interfaces/WaypointRoute
+TOPIC_AUTOPILOT_STATE   = "/usv/state/autopilot"        # Type: mavros_msgs/State (bridge output)
+TOPIC_STATE_VELOCITY    = "/usv/state/velocity"         # Type: geometry_msgs/TwistStamped
+TOPIC_CONTROL_MANUAL_RAW = "/usv/control/manual/raw"    # Type: geometry_msgs/Twist
 
 # ==========================================
 # Topic Template Mapping (For Dynamic Sensors)

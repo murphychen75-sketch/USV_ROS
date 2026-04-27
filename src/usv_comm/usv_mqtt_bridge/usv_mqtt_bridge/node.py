@@ -4,21 +4,21 @@ from __future__ import annotations
 
 import logging
 from itertools import count
-from typing import Any, Dict
+from typing import Dict
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, qos_profile_sensor_data
 from std_msgs.msg import String
 
-from usv_mqtt_bridge.command_dispatcher import CommandDispatcher
 from usv_mqtt_bridge.mqtt_client import MqttClient, MqttTransportConfig, Subscription
 from usv_mqtt_bridge.protocol import (
-    MSG_TYPE_CONFIG,
-    MSG_TYPE_CONTROL,
-    MSG_TYPE_RADAR,
-    MSG_TYPE_STATE,
-    MSG_TYPE_VISION,
+    DOWNLINK_KEYS,
+    MSG_TYPE_HEARTBEAT,
+    MSG_TYPE_RADAR_SCAN,
+    MSG_TYPE_STATUS,
+    MSG_TYPE_VISION_TARGETS,
+    UPLINK_KEYS,
     TOPIC_SPECS,
     spec_for_topic,
     topic_map,
@@ -31,6 +31,32 @@ from usv_mqtt_bridge.serializers import (
 )
 from usv_mqtt_bridge.throttlers import RateLimiter
 
+UPLINK_PARAM_KEYS = {
+    MSG_TYPE_STATUS: "status",
+    "status/jetson": "status_jetson",
+    MSG_TYPE_HEARTBEAT: "heartbeat",
+    "alarm": "alarm",
+    "diag/result": "diag_result",
+    "radar/control": "radar_control",
+    MSG_TYPE_RADAR_SCAN: "radar_scan",
+    "radar/scan_config": "radar_scan_config",
+    "radar/map": "radar_map",
+    MSG_TYPE_VISION_TARGETS: "vision_targets",
+    "perception/trajectory": "perception_trajectory",
+    "depth": "depth",
+    "weather": "weather",
+}
+
+DOWNLINK_PARAM_KEYS = {
+    "estop": "estop",
+    "arm": "arm",
+    "mode": "mode",
+    "auto/task": "auto_task",
+    "radar/control": "radar_control",
+    "video/ctrl": "video_ctrl",
+    "diag/request": "diag_request",
+}
+
 
 class UsvMqttBridgeNode(Node):
     """Bridge ROS 2 topics to MQTT topics and back."""
@@ -39,99 +65,71 @@ class UsvMqttBridgeNode(Node):
         super().__init__("usv_mqtt_bridge_node")
 
         self._logger = self.get_logger()
-        self._device_id = str(self.declare_parameter("device_id", "001").value)
-        default_topics = topic_map(self._device_id)
+        self._product_id = str(self.declare_parameter("product_id", "M10").value)
+        self._device_id = str(self.declare_parameter("device_id", "USV_N0001").value)
+        self._unit_id = str(self.declare_parameter("unit_id", "JETSON01").value)
+        default_topics = topic_map(self._product_id, self._device_id, self._unit_id)
 
-        self._mqtt_topics = {
-            MSG_TYPE_STATE: str(
-                self.declare_parameter("topics.state", default_topics[MSG_TYPE_STATE]).value
-            ),
-            MSG_TYPE_VISION: str(
-                self.declare_parameter("topics.vision", default_topics[MSG_TYPE_VISION]).value
-            ),
-            MSG_TYPE_RADAR: str(
-                self.declare_parameter("topics.radar", default_topics[MSG_TYPE_RADAR]).value
-            ),
-            MSG_TYPE_CONTROL: str(
-                self.declare_parameter(
-                    "topics.control", default_topics[MSG_TYPE_CONTROL]
-                ).value
-            ),
-            MSG_TYPE_CONFIG: str(
-                self.declare_parameter("topics.config", default_topics[MSG_TYPE_CONFIG]).value
-            ),
-            "status": str(
-                self.declare_parameter("topics.status_lwt", default_topics["status"]).value
-            ),
+        self._mqtt_topics: Dict[str, str] = {}
+        for msg_type in TOPIC_SPECS:
+            param_suffix = msg_type.replace("/", "_")
+            self._mqtt_topics[msg_type] = str(
+                self.declare_parameter(f"topics.{param_suffix}", default_topics[msg_type]).value
+            )
+
+        default_rates = {
+            MSG_TYPE_STATUS: 2.0,
+            MSG_TYPE_VISION_TARGETS: 10.0,
+            MSG_TYPE_RADAR_SCAN: 10.0,
         }
+        self._rate_limiters: Dict[str, RateLimiter] = {}
+        for msg_type, hz in default_rates.items():
+            self._rate_limiters[msg_type] = RateLimiter(
+                float(
+                    self.declare_parameter(
+                        f"publish_rates.{msg_type.replace('/', '_')}_hz", hz
+                    ).value
+                )
+            )
+        self._sequences = {msg_type: count(1) for msg_type in UPLINK_KEYS}
 
-        state_hz = float(self.declare_parameter("publish_rates.state_hz", 2.0).value)
-        vision_hz = float(self.declare_parameter("publish_rates.vision_hz", 10.0).value)
-        radar_hz = float(self.declare_parameter("publish_rates.radar_hz", 10.0).value)
+        self._downlink_publishers: Dict[str, String] = {}
+        for msg_type in DOWNLINK_KEYS:
+            param_name = DOWNLINK_PARAM_KEYS[msg_type]
+            ros_topic = str(
+                self.declare_parameter(f"ros_topics.{param_name}_output_topic", "").value
+            ).strip()
+            if not ros_topic:
+                self._logger.info(f"ROS output topic for {msg_type} is empty; skipping.")
+                continue
+            self._downlink_publishers[msg_type] = self.create_publisher(
+                String,
+                ros_topic,
+                QoSProfile(depth=10),
+            )
 
-        self._rate_limiters = {
-            MSG_TYPE_STATE: RateLimiter(state_hz),
-            MSG_TYPE_VISION: RateLimiter(vision_hz),
-            MSG_TYPE_RADAR: RateLimiter(radar_hz),
-        }
-        self._sequences = {
-            MSG_TYPE_STATE: count(1),
-            MSG_TYPE_VISION: count(1),
-            MSG_TYPE_RADAR: count(1),
-        }
-
-        self._control_publisher = self.create_publisher(
-            String,
-            str(
-                self.declare_parameter(
-                    "ros_topics.control_output_topic", "/usv/cmd/control/raw"
-                ).value
-            ),
-            QoSProfile(depth=10),
-        )
-        self._config_publisher = self.create_publisher(
-            String,
-            str(
-                self.declare_parameter(
-                    "ros_topics.config_output_topic", "/usv/cmd/config/raw"
-                ).value
-            ),
-            QoSProfile(depth=10),
-        )
-
-        self._command_dispatcher = CommandDispatcher(
-            device_id=self._device_id,
-            publish_control=self._publish_control_raw,
-            publish_config=self._publish_config_raw,
-            apply_runtime_config=self._apply_runtime_config,
-        )
-
-        self._state_subscription = self.create_subscription(
-            String,
-            str(self.declare_parameter("ros_topics.state_input_topic", "/usv/state").value),
-            lambda msg: self._handle_telemetry_message(MSG_TYPE_STATE, msg),
-            QoSProfile(depth=10),
-        )
-        self._vision_subscription = self.create_subscription(
-            String,
-            str(
-                self.declare_parameter(
-                    "ros_topics.vision_input_topic", "/usv/vision/metadata"
-                ).value
-            ),
-            lambda msg: self._handle_telemetry_message(MSG_TYPE_VISION, msg),
-            qos_profile_sensor_data,
-        )
-        self._radar_subscription = self.create_subscription(
-            String,
-            str(
-                self.declare_parameter(
-                    "ros_topics.radar_input_topic", "/usv/radar/targets"
-                ).value
-            ),
-            lambda msg: self._handle_telemetry_message(MSG_TYPE_RADAR, msg),
-            qos_profile_sensor_data,
-        )
+        self._telemetry_subscriptions = []
+        for msg_type in UPLINK_KEYS:
+            param_name = UPLINK_PARAM_KEYS[msg_type]
+            ros_topic = str(
+                self.declare_parameter(f"ros_topics.{param_name}_input_topic", "").value
+            ).strip()
+            if not ros_topic:
+                self._logger.info(f"ROS input topic for {msg_type} is empty; skipping.")
+                continue
+            qos = (
+                qos_profile_sensor_data
+                if msg_type in {MSG_TYPE_VISION_TARGETS, MSG_TYPE_RADAR_SCAN}
+                else QoSProfile(depth=10)
+            )
+            self._telemetry_subscriptions.append(
+                self.create_subscription(
+                    String,
+                    ros_topic,
+                    lambda msg, key=msg_type: self._handle_telemetry_message(key, msg),
+                    qos,
+                )
+            )
 
         client_id = str(
             self.declare_parameter("broker.client_id", f"usv-mqtt-{self._device_id}").value
@@ -140,7 +138,9 @@ class UsvMqttBridgeNode(Node):
             host=str(self.declare_parameter("broker.host", "127.0.0.1").value),
             port=int(self.declare_parameter("broker.port", 1883).value),
             client_id=client_id,
+            product_id=self._product_id,
             device_id=self._device_id,
+            unit_id=self._unit_id,
             keepalive_sec=int(self.declare_parameter("broker.keepalive_sec", 15).value),
             username=self._optional_string("broker.username"),
             password=self._optional_string("broker.password"),
@@ -155,8 +155,8 @@ class UsvMqttBridgeNode(Node):
         self._mqtt_client = MqttClient(
             mqtt_config,
             subscriptions=[
-                Subscription(self._mqtt_topics[MSG_TYPE_CONTROL], TOPIC_SPECS[MSG_TYPE_CONTROL].qos),
-                Subscription(self._mqtt_topics[MSG_TYPE_CONFIG], TOPIC_SPECS[MSG_TYPE_CONFIG].qos),
+                Subscription(self._mqtt_topics[msg_type], TOPIC_SPECS[msg_type].qos)
+                for msg_type in DOWNLINK_KEYS
             ],
             on_message=self._handle_mqtt_message,
             on_connection_state_change=self._handle_connection_state,
@@ -172,12 +172,6 @@ class UsvMqttBridgeNode(Node):
         value = str(self.declare_parameter(name, "").value)
         return value or None
 
-    def _publish_control_raw(self, raw_json: str) -> None:
-        self._control_publisher.publish(String(data=raw_json))
-
-    def _publish_config_raw(self, raw_json: str) -> None:
-        self._config_publisher.publish(String(data=raw_json))
-
     def _handle_connection_state(self, connected: bool) -> None:
         if connected:
             self._logger.info("MQTT transport connected.")
@@ -185,8 +179,8 @@ class UsvMqttBridgeNode(Node):
             self._logger.warning("MQTT transport disconnected.")
 
     def _handle_telemetry_message(self, msg_type: str, ros_message: String) -> None:
-        limiter = self._rate_limiters[msg_type]
-        if not limiter.allow():
+        limiter = self._rate_limiters.get(msg_type)
+        if limiter is not None and not limiter.allow():
             return
 
         try:
@@ -222,39 +216,20 @@ class UsvMqttBridgeNode(Node):
             self._logger.warning(f"Failed to publish {msg_type} telemetry: {exc}")
 
     def _handle_mqtt_message(self, topic: str, raw_payload: bytes) -> None:
-        spec = spec_for_topic(topic, self._device_id)
+        spec = spec_for_topic(topic, self._product_id, self._device_id, self._unit_id)
         if spec is None:
             self._logger.warning(f"Ignoring message on unknown topic: {topic}")
             return
 
         try:
-            if spec.key == MSG_TYPE_CONTROL:
-                result = self._command_dispatcher.handle_control(raw_payload)
-            elif spec.key == MSG_TYPE_CONFIG:
-                result = self._command_dispatcher.handle_config(raw_payload)
-            else:
-                self._logger.warning(f"Ignoring unsupported inbound topic: {topic}")
+            publisher = self._downlink_publishers.get(spec.key)
+            if publisher is None:
+                self._logger.info(f"No ROS output for {spec.key}; inbound message ignored.")
                 return
-            self._logger.info(f"Processed inbound {result.message_type} message.")
-        except ProtocolError as exc:
-            self._logger.warning(f"Rejected inbound message on {topic}: {exc}")
+            publisher.publish(String(data=raw_payload.decode("utf-8")))
+            self._logger.info(f"Processed inbound {spec.key} message.")
         except Exception as exc:  # pragma: no cover - defensive logging
             self._logger.error(f"Unexpected error on inbound message: {exc}")
-
-    def _apply_runtime_config(self, config: Dict[str, Any]) -> None:
-        rate_key_to_type = {
-            "state_rate_hz": MSG_TYPE_STATE,
-            "vision_rate_hz": MSG_TYPE_VISION,
-            "radar_rate_hz": MSG_TYPE_RADAR,
-        }
-        for key, value in config.items():
-            if key in rate_key_to_type:
-                self._rate_limiters[rate_key_to_type[key]].set_rate(float(value))
-                self._logger.info(f"Updated {key} to {float(value):.2f} Hz")
-            elif key == "radar_safe_distance_m":
-                self._logger.info(
-                    f"Forwarded radar_safe_distance_m={float(value):.3f}"
-                )
 
 
 def main(args=None) -> None:

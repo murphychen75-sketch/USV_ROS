@@ -14,7 +14,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - environment-specific
     mqtt = None
 
-from usv_mqtt_bridge.protocol import MSG_TYPE_STATUS, topic_for
+from usv_mqtt_bridge.protocol import MSG_TYPE_HEARTBEAT, topic_for
 from usv_mqtt_bridge.serializers import build_envelope, serialize_envelope
 
 
@@ -37,7 +37,9 @@ class MqttTransportConfig:
     host: str
     port: int
     client_id: str
+    product_id: str
     device_id: str
+    unit_id: str
     keepalive_sec: int = 15
     username: Optional[str] = None
     password: Optional[str] = None
@@ -87,7 +89,7 @@ class MqttClient:
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._on_message
         self._client.will_set(
-            topic_for(config.device_id, MSG_TYPE_STATUS),
+            topic_for(config.product_id, config.device_id, config.unit_id, MSG_TYPE_HEARTBEAT),
             payload=self._presence_payload("offline"),
             qos=1,
             retain=True,
@@ -120,7 +122,12 @@ class MqttClient:
         if self.is_connected:
             try:
                 self.publish(
-                    topic_for(self._config.device_id, MSG_TYPE_STATUS),
+                    topic_for(
+                        self._config.product_id,
+                        self._config.device_id,
+                        self._config.unit_id,
+                        MSG_TYPE_HEARTBEAT,
+                    ),
                     self._presence_payload("offline"),
                     qos=1,
                     retain=True,
@@ -159,7 +166,7 @@ class MqttClient:
     def _presence_payload(self, state: str) -> str:
         envelope = build_envelope(
             device_id=self._config.device_id,
-            msg_type=MSG_TYPE_STATUS,
+            msg_type=MSG_TYPE_HEARTBEAT,
             seq=next(self._status_seq),
             payload={"state": state},
         )
@@ -175,7 +182,12 @@ class MqttClient:
         for subscription in self._subscriptions.values():
             client.subscribe(subscription.topic, qos=subscription.qos)
         self.publish(
-            topic_for(self._config.device_id, MSG_TYPE_STATUS),
+            topic_for(
+                self._config.product_id,
+                self._config.device_id,
+                self._config.unit_id,
+                MSG_TYPE_HEARTBEAT,
+            ),
             self._presence_payload("online"),
             qos=1,
             retain=True,
