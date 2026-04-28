@@ -1,7 +1,5 @@
 import math
-from tf_transformations import quaternion_from_euler
 from typing import Tuple
-from geographiclib.geodesic import Geodesic
 
 
 # in km
@@ -45,13 +43,14 @@ def latlon_to_enu(ref_lon, ref_lat, lon, lat):
     """
     enu: east-north-up
     """
-    geod = Geodesic.WGS84
-    result = geod.Inverse(ref_lat, ref_lon, lat, lon)
-    distance = result['s12']    # in meters
-    azimuth = math.radians(result['azi1'])
-
-    x = distance * math.sin(azimuth)
-    y = distance * math.cos(azimuth)
+    # Local tangent-plane approximation around the reference point.
+    # Accurate enough for short-range maritime awareness (km-level).
+    radius_m = EARTH_RADIUS * 1000.0
+    ref_lat_rad = math.radians(ref_lat)
+    dlat = math.radians(lat - ref_lat)
+    dlon = math.radians(lon - ref_lon)
+    x = radius_m * dlon * math.cos(ref_lat_rad)
+    y = radius_m * dlat
     return x, y
 
 
@@ -59,13 +58,11 @@ def enu_to_latlon(ref_lon, ref_lat, x, y):
     """
     reversed latlon_to_enu
     """
-    azimuth = math.degrees(math.atan2(x, y))
-    distance = math.sqrt(x**2 + y**2)  # in meters
-
-    geod = Geodesic.WGS84
-    result = geod.Direct(ref_lat, ref_lon, azimuth, distance)
-
-    return result['lon2'], result['lat2']
+    radius_m = EARTH_RADIUS * 1000.0
+    ref_lat_rad = math.radians(ref_lat)
+    lat = ref_lat + math.degrees(y / radius_m)
+    lon = ref_lon + math.degrees(x / (radius_m * math.cos(ref_lat_rad)))
+    return lon, lat
 
 
 def heading_to_enu_quaternion(heading):
@@ -75,8 +72,12 @@ def heading_to_enu_quaternion(heading):
     """
     theta = heading / 180 * math.pi
     theta_enu = math.pi/2 - theta
-    x, y, z, w = quaternion_from_euler(ai=0, aj=0, ak=theta_enu)
-
+    # Yaw-only quaternion in ENU frame.
+    half = theta_enu * 0.5
+    x = 0.0
+    y = 0.0
+    z = math.sin(half)
+    w = math.cos(half)
     return x, y, z, w
 
 

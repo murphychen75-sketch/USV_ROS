@@ -1,0 +1,5 @@
+bool set_armed
+string target_mode
+---
+bool success
+string message

@@ -6,7 +6,7 @@ from std_msgs.msg import Int16MultiArray
 from pymavlink import mavutil
 import threading
 import time
-from ros2_mav_demo.topic_contract import (
+from usv_mavlink_bridge.topic_contract import (
     LEGACY_TOPICS,
     MAVLINK_ENDPOINT,
     MAVLINK_SOURCE_COMPONENT,

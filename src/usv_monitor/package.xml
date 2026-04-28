@@ -1,21 +1,22 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>usv_mavlink_bridge</name>
-  <version>0.0.0</version>
-  <description>USV MAVLink bridge package.</description>
-  <maintainer email="lsh@todo.todo">lsh</maintainer>
+  <name>usv_monitor</name>
+  <version>0.1.0</version>
+  <description>USV monitor nodes for system status, heartbeat, and watchdog.</description>
+  <maintainer email="developer@usv.com">USV Developer</maintainer>
   <license>Apache-2.0</license>
 
+  <buildtool_depend>ament_python</buildtool_depend>
+
   <depend>rclpy</depend>
-  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
-  <depend>geometry_msgs</depend>
   <depend>usv_interfaces</depend>
   <depend>mavros_msgs</depend>
-  <exec_depend>ament_index_python</exec_depend>
 
-  <test_depend>ament_copyright</test_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>

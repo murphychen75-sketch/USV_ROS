@@ -53,6 +53,7 @@ def generate_launch_description():
     localization_params_file = LaunchConfiguration('localization_params_file')
     use_static_map_odom_tf = LaunchConfiguration('use_static_map_odom_tf')
     disable_fastdds_shm = LaunchConfiguration('disable_fastdds_shm')
+    gz_headless = LaunchConfiguration('gz_headless')
 
     def disable_fastdds_shm_env(context, *args, **kwargs):
         """Gazebo + 多 ROS 节点时 Fast DDS 默认共享内存易抖动，可触发 lifecycle 服务响应超时。"""
@@ -105,6 +106,7 @@ def generate_launch_description():
             'enable_robot_localization': enable_robot_localization,
             'localization_params_file': localization_params_file,
             'use_static_map_odom_tf': use_static_map_odom_tf,
+            'gz_headless': gz_headless,
             # 使用包内 default.rviz 作为 RViz 底稿，不再打开 session_manager 生成的 session.rviz
             'rviz_config_path_override': default_rviz_config,
             'verbose_launch': verbose_launch,
@@ -246,6 +248,11 @@ def generate_launch_description():
             'verbose_launch',
             default_value='false',
             description='透传 main / nav2_thruster：true 时终端详细输出（默认降噪）'
+        ),
+        DeclareLaunchArgument(
+            'gz_headless',
+            default_value='false',
+            description='true 时 Gazebo 以 server-only 模式运行（无 GUI 渲染窗口）'
         ),
         LogInfo(msg=['Starting simulation bringup from: ', config_path]),
         OpaqueFunction(function=disable_fastdds_shm_env),

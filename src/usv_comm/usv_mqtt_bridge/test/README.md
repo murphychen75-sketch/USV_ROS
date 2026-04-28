@@ -23,7 +23,7 @@ QoS 直接取自 `protocol.py` 的 `TOPIC_SPECS`：
 
 发布 Topic 统一遵循：
 
-- `/{product_id}/{device_id}/{unit_id}/{msg_type}`
+- `/sys/{product_id}/{device_id}/thing/{type}/{identifier}`
 
 ### 运行命令
 
@@ -36,7 +36,7 @@ python3 src/usv_comm/usv_mqtt_bridge/test/publish_protocol_topics.py
 默认会读取：
 
 - `src/usv_comm/usv_mqtt_bridge/config/params.yaml`
-- 读取字段：`broker.host`、`broker.port`、`product_id`、`device_id`、`unit_id`
+- 读取字段：`broker.host`、`broker.port`、`product_id`、`device_id`
 
 默认行为是**持续发送**（不自动停止）。
 

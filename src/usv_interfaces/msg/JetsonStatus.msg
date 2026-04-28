@@ -1,0 +1,7 @@
+std_msgs/Header header
+float32 cpu_usage_percent
+float32 memory_usage_percent
+float32 gpu_usage_percent
+float32 temperature_c
+uint64 uptime_ms
+float32 disk_usage_percent

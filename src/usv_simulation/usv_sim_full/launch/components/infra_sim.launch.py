@@ -31,10 +31,17 @@ def generate_launch_description():
         default_value='false',
         description='为 true 时打印 GZ 资源路径同步信息，全局桥接节点输出到终端'
     )
+
+    gz_headless_arg = DeclareLaunchArgument(
+        'gz_headless',
+        default_value='false',
+        description='true 时以 server-only 方式启动 Gazebo（不启动 GUI 渲染窗口）'
+    )
     
     # 获取launch配置
     world_name = LaunchConfiguration('world_name')
     verbose_launch = LaunchConfiguration('verbose_launch')
+    gz_headless = LaunchConfiguration('gz_headless')
 
     # 设置GZ_SIM_RESOURCE_PATH环境变量，确保能找到模型文件
     usv_sim_path = get_package_share_directory('usv_sim_full')
@@ -145,6 +152,7 @@ def generate_launch_description():
 
     def launch_gazebo_with_selected_world(context, *args, **kwargs):
         selected_world_name = world_name.perform(context)
+        headless = gz_headless.perform(context).lower() in ('true', '1', 'yes')
         worlds_dir = os.path.join(usv_sim_path, "worlds")
         world_file_sdf = os.path.join(worlds_dir, f"{selected_world_name}.sdf")
         world_file_world = os.path.join(worlds_dir, f"{selected_world_name}.world")
@@ -168,13 +176,14 @@ def generate_launch_description():
                 f"World not found: {world_file}. Available world_name values: {available_worlds}"
             )
 
+        gz_args = f'-r -s {world_file}' if headless else f'-r {world_file}'
         gazebo_launch = IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 get_package_share_directory('ros_gz_sim'),
                 '/launch/gz_sim.launch.py'
             ]),
             launch_arguments={
-                'gz_args': f'-r {world_file}'
+                'gz_args': gz_args
             }.items()
         )
         return [gazebo_launch]
@@ -197,6 +206,7 @@ def generate_launch_description():
     return LaunchDescription([
         world_name_arg,
         verbose_launch_arg,
+        gz_headless_arg,
         set_resource_path,
         set_model_path,  # 添加GAZEBO_MODEL_PATH设置
         set_plugin_path,  # 注册仿真插件路径（launch context）

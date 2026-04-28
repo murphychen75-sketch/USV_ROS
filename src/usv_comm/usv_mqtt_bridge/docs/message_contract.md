@@ -1,22 +1,20 @@
 # MQTT 消息契约与 ROS 对齐
 
-本文档描述 `usv_mqtt_bridge` 当前实现：优先对齐 [`mqtt_info.md`](./mqtt_info.md)，`usv_interfaces` 对齐采取“有则映射、无则留空”。
+本文档基于最新版 [`mqtt_info.md`](./mqtt_info.md) 说明 `usv_mqtt_bridge` 的实现映射关系。  
+当前已按“仅保留两个变量”调整为：
 
-## 设计原则
+- `product_id`
+- `device_id`
 
-- MQTT Topic 优先遵循协议文档，不以历史实现为准
-- ROS 侧暂无对应话题时，参数默认留空，节点自动跳过该链路
-- ROS 与 MQTT 之间暂用 `std_msgs/String` 承载 JSON
+不再使用 `uid/unit_id`。Topic 仅通过消息主题本身区分业务类型。
 
-## Topic 命名
+## Topic 规范
 
-统一格式：
+统一模板：
 
-- `/{product_id}/{device_id}/{unit_id}/{msg_type}`
+- `/sys/{productKey}/{deviceName}/thing/{type}/{identifier}`
 
-## 外发消息结构
-
-桥接上行统一封装为 envelope：
+## Envelope（桥接内部统一外发）
 
 ```json
 {
@@ -26,30 +24,48 @@
     "gateway_publish_time": "2026-04-22T10:00:00.050Z"
   },
   "device_id": "USV_N0001",
-  "msg_type": "radar/scan",
+  "msg_type": "status",
   "seq": 1,
   "payload": {}
 }
 ```
 
-## MQTT 与 ROS 2 映射（当前实现）
+## 当前 MQTT <-> ROS 映射
 
-| 方向 | ROS 2 侧 | 当前承载类型 | MQTT 侧 | 备注 |
+| 方向 | MQTT 主题 | ROS 话题 | 承载 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
-| 上行 | `/usv/state` | `std_msgs/String` | `.../status` | 已接入 |
-| 上行 | `/usv/vision/metadata` | `std_msgs/String` | `.../vision/targets` | 已接入 |
-| 上行 | `/usv/radar/targets` | `std_msgs/String` | `.../radar/scan` | 已接入 |
-| 上行 | 空 | - | `.../status/jetson` 等 | 暂未接 ROS，参数留空 |
-| 下行 | `/usv/cmd/mode/raw` | `std_msgs/String` | `.../mode` | 已接入 |
-| 下行 | `/usv/cmd/radar/control/raw` | `std_msgs/String` | `.../radar/control` | 已接入 |
-| 下行 | 空 | - | `.../estop` 等 | 暂未接 ROS，参数留空 |
+| 上行 | `/sys/{pk}/{dn}/thing/property/status` | `/usv/state` | `std_msgs/String` | 已接入 |
+| 上行 | `/sys/{pk}/{dn}/thing/event/vision_targets` | `/usv/vision/metadata` | `std_msgs/String` | 已接入 |
+| 上行 | `/sys/{pk}/{dn}/thing/property/radar_scan` | `/usv/radar/targets` | `std_msgs/String` | 已接入 |
+| 下行 | `/sys/{pk}/{dn}/thing/service/mode` | `/usv/cmd/mode/raw` | `std_msgs/String` | 已接入 |
+| 下行 | `/sys/{pk}/{dn}/thing/service/radar_scan_config` | `/usv/cmd/radar/control/raw` | `std_msgs/String` | 已接入 |
 
-## 与 `usv_interfaces` 对齐策略
+## 与 `usv_interfaces` 对应关系（当前）
 
-| 协议语义 | 当前 ROS 话题 | `usv_interfaces` 对齐建议 |
+| 协议语义 | 当前 ROS 话题 | 建议对齐的 `usv_interfaces` |
 | :--- | :--- | :--- |
-| `status` | `/usv/state` | `VesselState` |
-| `mode` 下行 | `/usv/cmd/mode/raw` | `OperationMode` |
-| `auto/task` 下行 | 空 | `WaypointRoute`（后续补） |
-| `vision/targets` | `/usv/vision/metadata` | 暂无，留空 |
-| `radar/scan` / `radar/map` | `/usv/radar/targets` / 空 | 暂无，留空 |
+| `property/status` | `/usv/state` | `VesselState` |
+| `service/mode` | `/usv/cmd/mode/raw` | `OperationMode` |
+| `service/auto_task` | 空 | `WaypointRoute` |
+| `event/vision_targets` | `/usv/vision/metadata` | 暂无（待补） |
+| `property/radar_scan` | `/usv/radar/targets` | 暂无（待补） |
+| `service/radar_scan_config` | `/usv/cmd/radar/control/raw` | 暂无（待补） |
+
+## 当前缺少的 ROS 话题（已在参数中留空）
+
+- 上行缺少：
+  - `property/status_jetson`
+  - `event/heartbeat`
+  - `event/alarm`
+  - `event/diag_result`
+  - `event/radar_scan_config_reply`
+  - `property/radar_map`
+  - `property/perception_trajectory`
+  - `property/depth`
+  - `property/weather`
+- 下行缺少：
+  - `service/estop`
+  - `service/arm`
+  - `service/auto_task`
+  - `service/video_ctrl`
+  - `service/diag_request`

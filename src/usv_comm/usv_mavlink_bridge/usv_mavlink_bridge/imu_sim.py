@@ -4,7 +4,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
 from rclpy.qos import QoSProfile, ReliabilityPolicy
-from ros2_mav_demo.topic_contract import LEGACY_TOPICS, PRIMARY_TOPICS
+from usv_mavlink_bridge.topic_contract import LEGACY_TOPICS, PRIMARY_TOPICS
 
 class ImuSimNode(Node):
     def __init__(self):

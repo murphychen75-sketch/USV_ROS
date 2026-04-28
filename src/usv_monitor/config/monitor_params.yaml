@@ -1,0 +1,28 @@
+system_status_node:
+  ros__parameters:
+    publish_hz: 5.0
+    disk_path: "/"
+    jetson_status_topic: "/usv/monitor/jetson_status"
+    status_jetson_json_topic: "/usv/monitor/status_jetson/json"
+    use_jtop: true
+
+heartbeat_node:
+  ros__parameters:
+    heartbeat_hz: 1.0
+    autopilot_state_topic: "/usv/state/autopilot"
+    heartbeat_topic: "/usv/monitor/heartbeat"
+    heartbeat_json_topic: "/usv/monitor/heartbeat/json"
+    fallback_mavros_state_topic: "/mavros/state"
+    use_fallback_mavros: false
+
+autopilot_control_service_node:
+  ros__parameters:
+    frontend_service_name: "/usv/control/autopilot"
+    backend_service_name: "/usv/mavlink/autopilot_control"
+    backend_wait_timeout_sec: 1.0
+
+alarm_watchdog_node:
+  ros__parameters:
+    watchdog_hz: 1.0
+    alarm_topic: "/usv/monitor/alarm"
+    monitored_nodes: []

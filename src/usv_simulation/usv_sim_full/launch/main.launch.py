@@ -55,6 +55,7 @@ from usv_sim_full.launch_config_helpers import (
 def launch_setup(context, *args, **kwargs):
     config_path = LaunchConfiguration('config_path').perform(context)
     verbose_s = LaunchConfiguration('verbose_launch').perform(context)
+    gz_headless_s = LaunchConfiguration('gz_headless').perform(context)
     enable_robot_localization = LaunchConfiguration('enable_robot_localization').perform(
         context
     )
@@ -174,6 +175,7 @@ def launch_setup(context, *args, **kwargs):
         launch_arguments={
             'world_name': world_name,
             'verbose_launch': verbose_s,
+            'gz_headless': gz_headless_s,
         }.items()
     )
 
@@ -482,6 +484,11 @@ def generate_launch_description():
                 'true：各节点输出到终端并保留 session_manager/infra 详细 print 与 INFO 日志；'
                 'false（默认）：降噪（桥接/RViz 等写入 ~/.ros/log，RCUTILS 默认 WARN）'
             ),
+        ),
+        DeclareLaunchArgument(
+            'gz_headless',
+            default_value='false',
+            description='true 时 Gazebo 以 server-only 运行，不启动 GUI 渲染窗口'
         ),
         OpaqueFunction(function=launch_setup)
     ])

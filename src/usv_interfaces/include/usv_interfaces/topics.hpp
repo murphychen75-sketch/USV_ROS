@@ -43,6 +43,10 @@ namespace usv_interfaces {
     constexpr char TOPIC_AUTOPILOT_STATE[]   = "/usv/state/autopilot";       // mavros_msgs/State (bridge output)
     constexpr char TOPIC_STATE_VELOCITY[]    = "/usv/state/velocity";        // geometry_msgs/TwistStamped
     constexpr char TOPIC_CONTROL_MANUAL_RAW[] = "/usv/control/manual/raw";   // geometry_msgs/Twist
+    constexpr char TOPIC_JETSON_STATUS[]     = "/usv/monitor/jetson_status"; // usv_interfaces/JetsonStatus
+    constexpr char TOPIC_HEARTBEAT[]         = "/usv/monitor/heartbeat";     // usv_interfaces/HeartbeatStatus
+    constexpr char TOPIC_MAVROS_STATE_RAW[]  = "/mavros/state";              // mavros_msgs/State
+    constexpr char SERVICE_AUTOPILOT_CONTROL[] = "/usv/control/autopilot";   // usv_interfaces/srv/AutopilotControl
 
     // 动态传感器话题模板 (Dynamic Sensor Topic Templates)
     constexpr char TEMPLATE_CAMERA[] = "/sensors/camera/{sensor_name}/image_raw";

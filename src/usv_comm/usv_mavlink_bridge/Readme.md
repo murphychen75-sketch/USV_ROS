@@ -1,7 +1,7 @@
 # usv_mavlink_bridge 使用说明
 
 本包用于在 ROS 2 与 MAVLink 之间做协议桥接，并已按 `usv_interfaces` 完成主链路对齐。  
-实现方式为多节点拆分 + 单一映射源（`ros2_mav_demo/topic_contract.py`）。
+实现方式为多节点拆分 + 单一映射源（`usv_mavlink_bridge/topic_contract.py`）。
 
 ## 1. 功能概览
 
@@ -30,10 +30,10 @@
 
 ## 3. 运行方式
 
-### 3.1 一键启动演示链路
+### 3.1 一键启动桥接链路
 
 ```bash
-ros2 launch ros2_mav_demo demo_launch.py
+ros2 launch usv_mavlink_bridge usv_mavlink_bridge.launch.py
 ```
 
 该 launch 默认启动：
@@ -43,11 +43,12 @@ ros2 launch ros2_mav_demo demo_launch.py
 - `imu_bridge`
 - `gps_bridge`
 - `rc_bridge`
+- `autopilot_state_bridge`
 
 ### 3.2 单独启动摇杆桥接
 
 ```bash
-ros2 run ros2_mav_demo rc_bridge
+ros2 run usv_mavlink_bridge rc_bridge
 ```
 
 ### 3.3 QGC 观测建议
@@ -87,13 +88,24 @@ ros2 run ros2_mav_demo rc_bridge
 - 主输出：`geometry_msgs/Twist@/usv/control/manual/raw`
 - 兼容输出开关：`publish_legacy_manual_topic`
 
+### `autopilot_state_bridge`
+- 作用：桥接 MAVROS 飞控状态，并提供后端控制服务
+- 节点文件：`usv_mavlink_bridge/autopilot_state_bridge.py`
+- 订阅输入：`/mavros/state`（`mavros_msgs/msg/State`）
+- 发布输出：`/usv/state/autopilot`（`usv_interfaces/msg/HeartbeatStatus`）
+  - 字段统一为：`online`、`armed_status`、`control_mode`
+- 服务接口：`/usv/mavlink/autopilot_control`（`usv_interfaces/srv/AutopilotControl`）
+- 内部调用 MAVROS 服务：
+  - `/mavros/cmd/arming`
+  - `/mavros/set_mode`
+
 ## 5. 构建与验证
 
 在工作区根目录执行：
 
 ```bash
 colcon build --packages-select usv_interfaces --symlink-install
-colcon build --packages-select ros2_mav_demo --symlink-install
+colcon build --packages-select usv_mavlink_bridge --symlink-install
 source install/setup.bash
 ```
 

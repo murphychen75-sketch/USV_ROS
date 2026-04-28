@@ -5,7 +5,7 @@ from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import Float64MultiArray
 import math
 import time
-from ros2_mav_demo.topic_contract import LEGACY_TOPICS, PRIMARY_TOPICS
+from usv_mavlink_bridge.topic_contract import LEGACY_TOPICS, PRIMARY_TOPICS
 
 
 class GpsSimNode(Node):

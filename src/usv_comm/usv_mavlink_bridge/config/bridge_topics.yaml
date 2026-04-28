@@ -5,3 +5,14 @@
     publish_legacy_manual_topic: false
     publish_legacy_imu_topic: false
     publish_legacy_gps_topics: false
+    mavros_state_input_topic: "/mavros/state"
+    autopilot_state_output_topic: "/usv/state/autopilot"
+    autopilot_control_service: "/usv/mavlink/autopilot_control"
+    mavros_arming_service: "/mavros/cmd/arming"
+    mavros_set_mode_service: "/mavros/set_mode"
+    service_timeout_sec: 2.0
+    mode_mapping_table:
+      - "MANUAL:manual"
+      - "AUTO:auto"
+      - "GUIDED:guided"
+      - "RTL:rtl"

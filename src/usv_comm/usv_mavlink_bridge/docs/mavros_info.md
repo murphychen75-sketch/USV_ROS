@@ -50,11 +50,11 @@
 
 ## 四、当前桥接实现（已落地）
 
-- 已新增集中映射文件：`ros2_mav_demo/topic_contract.py`，统一维护主话题与旧话题兼容映射。  
+- 已新增集中映射文件：`usv_mavlink_bridge/topic_contract.py`，统一维护主话题与旧话题兼容映射。  
 - `mav_imu_bridge`：主输入 `sensor_msgs/Imu@/sensors/imu/data`，兼容输入 `/imu/data`（参数开关）。  
 - `mav_gps_bridge`：主输入 `sensor_msgs/NavSatFix@/sensors/gps/data` + `geometry_msgs/TwistStamped@/usv/state/velocity`；兼容输入 `/comm/gps`、`/comm/gpsr`（参数开关）。  
 - `mav_rc_bridge`：主输出 `geometry_msgs/Twist@/usv/control/manual/raw`；兼容输出 `/control/manual_control_raw`（参数开关）。  
-- 启动参数统一放在 `config/bridge_topics.yaml`，`demo_launch.py` 已默认加载。  
+- 启动参数统一放在 `config/bridge_topics.yaml`，`usv_mavlink_bridge.launch.py` 已默认加载。
 
 ## 五、参数开关（兼容迁移）
 

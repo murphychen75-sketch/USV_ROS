@@ -39,7 +39,6 @@ class MqttTransportConfig:
     client_id: str
     product_id: str
     device_id: str
-    unit_id: str
     keepalive_sec: int = 15
     username: Optional[str] = None
     password: Optional[str] = None
@@ -89,7 +88,7 @@ class MqttClient:
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._on_message
         self._client.will_set(
-            topic_for(config.product_id, config.device_id, config.unit_id, MSG_TYPE_HEARTBEAT),
+            topic_for(config.product_id, config.device_id, MSG_TYPE_HEARTBEAT),
             payload=self._presence_payload("offline"),
             qos=1,
             retain=True,
@@ -125,7 +124,6 @@ class MqttClient:
                     topic_for(
                         self._config.product_id,
                         self._config.device_id,
-                        self._config.unit_id,
                         MSG_TYPE_HEARTBEAT,
                     ),
                     self._presence_payload("offline"),
@@ -185,7 +183,6 @@ class MqttClient:
             topic_for(
                 self._config.product_id,
                 self._config.device_id,
-                self._config.unit_id,
                 MSG_TYPE_HEARTBEAT,
             ),
             self._presence_payload("online"),

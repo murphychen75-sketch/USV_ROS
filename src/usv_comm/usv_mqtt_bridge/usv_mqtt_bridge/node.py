@@ -67,8 +67,7 @@ class UsvMqttBridgeNode(Node):
         self._logger = self.get_logger()
         self._product_id = str(self.declare_parameter("product_id", "M10").value)
         self._device_id = str(self.declare_parameter("device_id", "USV_N0001").value)
-        self._unit_id = str(self.declare_parameter("unit_id", "JETSON01").value)
-        default_topics = topic_map(self._product_id, self._device_id, self._unit_id)
+        default_topics = topic_map(self._product_id, self._device_id)
 
         self._mqtt_topics: Dict[str, str] = {}
         for msg_type in TOPIC_SPECS:
@@ -140,7 +139,6 @@ class UsvMqttBridgeNode(Node):
             client_id=client_id,
             product_id=self._product_id,
             device_id=self._device_id,
-            unit_id=self._unit_id,
             keepalive_sec=int(self.declare_parameter("broker.keepalive_sec", 15).value),
             username=self._optional_string("broker.username"),
             password=self._optional_string("broker.password"),
@@ -216,7 +214,7 @@ class UsvMqttBridgeNode(Node):
             self._logger.warning(f"Failed to publish {msg_type} telemetry: {exc}")
 
     def _handle_mqtt_message(self, topic: str, raw_payload: bytes) -> None:
-        spec = spec_for_topic(topic, self._product_id, self._device_id, self._unit_id)
+        spec = spec_for_topic(topic, self._product_id, self._device_id)
         if spec is None:
             self._logger.warning(f"Ignoring message on unknown topic: {topic}")
             return

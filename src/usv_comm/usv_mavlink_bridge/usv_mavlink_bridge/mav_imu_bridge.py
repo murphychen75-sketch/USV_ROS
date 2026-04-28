@@ -7,7 +7,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu
 from pymavlink import mavutil
-from ros2_mav_demo.topic_contract import (
+from usv_mavlink_bridge.topic_contract import (
     LEGACY_TOPICS,
     MAVLINK_ENDPOINT,
     MAVLINK_SOURCE_COMPONENT,

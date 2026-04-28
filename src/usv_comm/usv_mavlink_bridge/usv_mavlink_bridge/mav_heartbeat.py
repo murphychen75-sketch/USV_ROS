@@ -6,7 +6,7 @@ import rclpy
 from rclpy.node import Node
 from pymavlink import mavutil
 import threading
-from ros2_mav_demo.topic_contract import (
+from usv_mavlink_bridge.topic_contract import (
     MAVLINK_ENDPOINT,
     MAVLINK_SOURCE_COMPONENT,
     MAVLINK_SOURCE_SYSTEM,

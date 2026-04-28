@@ -63,3 +63,11 @@ ros2 launch usv_sim_full main.launch.py
 ## 许可证
 
 本项目默认以 [Apache License 2.0](LICENSE) 分发；VRX、marine_msgs、foxglove-sdk 等保留各自许可证，详见 [NOTICE](NOTICE) 与 [src/usv_simulation/third_party/README.md](src/usv_simulation/third_party/README.md)。
+
+
+
+
+目前已经知道的,必须的依赖包
+
+ros-humble-nmea-navsat-driver
+

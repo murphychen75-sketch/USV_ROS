@@ -11,7 +11,7 @@ from sensor_msgs.msg import NavSatFix
 from std_msgs.msg import Float64MultiArray
 from pymavlink import mavutil
 
-from ros2_mav_demo.topic_contract import (
+from usv_mavlink_bridge.topic_contract import (
     LEGACY_TOPICS,
     MAVLINK_ENDPOINT,
     MAVLINK_SOURCE_COMPONENT,

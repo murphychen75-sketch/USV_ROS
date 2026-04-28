@@ -18,6 +18,8 @@ find_package(rosidl_default_generators REQUIRED)
 set(MSG_FILES
   msg/ControlDeviation.msg
   msg/OperationMode.msg
+  msg/JetsonStatus.msg
+  msg/HeartbeatStatus.msg
   msg/VisionDetection.msg
   msg/VisionDetectionArray.msg
   msg/MmwaveTarget.msg
@@ -37,6 +39,7 @@ set(MSG_FILES
 
 set(SRV_FILES
   srv/ControlDevice.srv
+  srv/AutopilotControl.srv
 )
 
 set(ACTION_FILES

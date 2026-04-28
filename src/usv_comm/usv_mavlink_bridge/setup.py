@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'ros2_mav_demo'
+package_name = 'usv_mavlink_bridge'
 
 setup(
     name=package_name,
@@ -11,24 +11,25 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         
-        ('share/' + package_name + '/launch', ['launch/demo_launch.py']),
+        ('share/' + package_name + '/launch', ['launch/usv_mavlink_bridge.launch.py']),
         ('share/' + package_name + '/config', ['config/bridge_topics.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='your_name',
     maintainer_email='your@email.com',
-    description='ROS 2 to MAVLink Demo',
+    description='USV MAVLink bridge package',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'heartbeat = ros2_mav_demo.mav_heartbeat:main',
-            'imu_bridge = ros2_mav_demo.mav_imu_bridge:main',
-            'imu_sim = ros2_mav_demo.imu_sim:main',
-            'rc_bridge = ros2_mav_demo.mav_rc_bridge:main',
-            'gps_sim = ros2_mav_demo.gps_sim:main',
-            'gps_bridge = ros2_mav_demo.mav_gps_bridge:main',
+            'heartbeat = usv_mavlink_bridge.mav_heartbeat:main',
+            'imu_bridge = usv_mavlink_bridge.mav_imu_bridge:main',
+            'imu_sim = usv_mavlink_bridge.imu_sim:main',
+            'rc_bridge = usv_mavlink_bridge.mav_rc_bridge:main',
+            'gps_sim = usv_mavlink_bridge.gps_sim:main',
+            'gps_bridge = usv_mavlink_bridge.mav_gps_bridge:main',
+            'autopilot_state_bridge = usv_mavlink_bridge.autopilot_state_bridge:main',
         ],
     },
 )

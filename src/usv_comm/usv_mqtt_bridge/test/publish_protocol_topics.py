@@ -211,7 +211,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=None, help="MQTT broker port (override)")
     parser.add_argument("--product-id", default=None, help="Product id (override)")
     parser.add_argument("--device-id", default=None, help="Device id (override)")
-    parser.add_argument("--unit-id", default=None, help="Unit id (override)")
     parser.add_argument("--interval-sec", type=float, default=1.0)
     parser.add_argument(
         "--client-id", default="usv-mqtt-test-publisher", help="MQTT client id"
@@ -245,7 +244,6 @@ def load_defaults_from_params(params_file: str) -> Dict[str, str | int]:
         "port": int(ros_params["broker.port"]),
         "product_id": str(ros_params["product_id"]),
         "device_id": str(ros_params["device_id"]),
-        "unit_id": str(ros_params["unit_id"]),
     }
 
 
@@ -326,7 +324,6 @@ def main() -> None:
     port = args.port if args.port is not None else int(defaults["port"])
     product_id = args.product_id or defaults["product_id"]
     device_id = args.device_id or defaults["device_id"]
-    unit_id = args.unit_id or defaults["unit_id"]
 
     client = mqtt.Client(client_id=args.client_id, clean_session=True)
     client.connect(host, port=port, keepalive=15)
@@ -350,7 +347,7 @@ def main() -> None:
                 if now < next_due[msg_type]:
                     continue
                 seq_map[msg_type] += 1
-                topic = topic_for(product_id, device_id, unit_id, msg_type)
+                topic = topic_for(product_id, device_id, msg_type)
                 payload = build_message(device_id, msg_type, seq_map[msg_type])
                 spec = TOPIC_SPECS[msg_type]
                 result = client.publish(topic, payload=payload, qos=spec.qos)
@@ -368,7 +365,7 @@ def main() -> None:
                         {
                             "cycle": cycle,
                             "published_types": published_types,
-                            "target": f"{product_id}/{device_id}/{unit_id}",
+                            "target": f"/sys/{product_id}/{device_id}/thing",
                             "broker": f"{host}:{port}",
                         },
                         ensure_ascii=True,

@@ -1,8 +1,8 @@
-"""Central topic/message mapping for ros2_mav_demo.
+"""Central topic/message mapping for usv_mavlink_bridge.
 
 This file is the single source of truth for:
 1) primary USV topics (aligned with usv_interfaces),
-2) legacy compatibility topics used by existing demo tools.
+2) legacy compatibility topics used by existing bridge tools.
 """
 
 from usv_interfaces import topics as usv_topics

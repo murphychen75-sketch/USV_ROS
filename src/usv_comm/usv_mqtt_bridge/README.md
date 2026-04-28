@@ -47,7 +47,7 @@
 
 ## 功能概览
 
-- Topic 命名统一为：`/{product_id}/{device_id}/{unit_id}/{msg_type}`
+- Topic 命名统一为：`/sys/{product_id}/{device_id}/thing/{type}/{identifier}`
 - 协议优先：优先遵循 [`docs/mqtt_info.md`](./docs/mqtt_info.md) 定义
 - ROS 侧缺失链路允许留空：`ros_topics.*` 为空时自动跳过，不影响节点启动
 - 上行链路统一封装 envelope：`timestamps`、`device_id`、`msg_type`、`seq`、`payload`
@@ -131,7 +131,7 @@ ros2 topic pub /usv/state std_msgs/msg/String '{data: "{\"battery_pct\": 90, \"l
 5. 订阅 MQTT 状态主题（示例）：
 
 ```bash
-mosquitto_sub -h 127.0.0.1 -t '/M10/USV_N0001/JETSON01/status'
+mosquitto_sub -h 127.0.0.1 -t '/sys/M10/USV_N0001/thing/property/status'
 ```
 
 ## 运行时配置

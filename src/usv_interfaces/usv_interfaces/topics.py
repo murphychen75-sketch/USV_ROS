@@ -52,6 +52,10 @@ TOPIC_WAYPOINT_ROUTE    = "/usv/control/waypoint_route" # Type: usv_interfaces/W
 TOPIC_AUTOPILOT_STATE   = "/usv/state/autopilot"        # Type: mavros_msgs/State (bridge output)
 TOPIC_STATE_VELOCITY    = "/usv/state/velocity"         # Type: geometry_msgs/TwistStamped
 TOPIC_CONTROL_MANUAL_RAW = "/usv/control/manual/raw"    # Type: geometry_msgs/Twist
+TOPIC_JETSON_STATUS     = "/usv/monitor/jetson_status"  # Type: usv_interfaces/JetsonStatus
+TOPIC_HEARTBEAT         = "/usv/monitor/heartbeat"      # Type: usv_interfaces/HeartbeatStatus
+TOPIC_MAVROS_STATE_RAW  = "/mavros/state"               # Type: mavros_msgs/State
+SERVICE_AUTOPILOT_CONTROL = "/usv/control/autopilot"    # Type: usv_interfaces/srv/AutopilotControl
 
 # ==========================================
 # Topic Template Mapping (For Dynamic Sensors)
