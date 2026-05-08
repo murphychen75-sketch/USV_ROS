@@ -13,10 +13,41 @@ from std_msgs.msg import String
 
 from usv_mqtt_bridge.mqtt_client import MqttClient, MqttTransportConfig, Subscription
 from usv_mqtt_bridge.protocol import (
+    MSG_TYPE_AIS,
+    MSG_TYPE_AIVIDEO_CTRL,
+    MSG_TYPE_AIVIDEO_CTRL_REPLY,
+    MSG_TYPE_AIVIDEO_STATUS,
+    MSG_TYPE_ARM_REPLY,
+    MSG_TYPE_AUTO_TASK_REPLY,
+    MSG_TYPE_BATTERY_STATUS,
+    MSG_TYPE_DEPTH_STATUS,
     DOWNLINK_KEYS,
+    MSG_TYPE_DIAG_REQUEST_REPLY,
+    MSG_TYPE_ESTOP_REPLY,
+    MSG_TYPE_FUEL_STATUS,
+    MSG_TYPE_GPS_STATUS,
     MSG_TYPE_HEARTBEAT,
-    MSG_TYPE_RADAR_SCAN,
+    MSG_TYPE_IMU,
+    MSG_TYPE_IO_CTRL,
+    MSG_TYPE_IO_CTRL_REPLY,
+    MSG_TYPE_IO_STATUS,
+    MSG_TYPE_MANUAL_CTRL,
+    MSG_TYPE_MANUAL_CTRL_REPLY,
+    MSG_TYPE_MCU_STATUS,
+    MSG_TYPE_MCU_HEARTBEAT,
+    MSG_TYPE_MISSION_DELTA,
+    MSG_TYPE_MODE_REPLY,
+    MSG_TYPE_MOTOR,
+    MSG_TYPE_PARAMS,
+    MSG_TYPE_PARAMS_REPLY,
+    MSG_TYPE_RADAR_MM,
+    MSG_TYPE_RADAR_NAV,
+    MSG_TYPE_RADAR_NAV_CONFIG,
+    MSG_TYPE_RADAR_NAV_CONFIG_REPLY,
+    MSG_TYPE_RADAR_NAV_MAP,
     MSG_TYPE_STATUS,
+    MSG_TYPE_TASK_PROG,
+    MSG_TYPE_WEATHER_STATUS,
     MSG_TYPE_VISION_TARGETS,
     UPLINK_KEYS,
     TOPIC_SPECS,
@@ -35,25 +66,49 @@ UPLINK_PARAM_KEYS = {
     MSG_TYPE_STATUS: "status",
     "status/jetson": "status_jetson",
     MSG_TYPE_HEARTBEAT: "heartbeat",
+    MSG_TYPE_MCU_HEARTBEAT: "mcu_heartbeat",
     "alarm": "alarm",
+    MSG_TYPE_MISSION_DELTA: "mission_delta",
+    MSG_TYPE_AIVIDEO_STATUS: "aivideo_status",
     "diag/result": "diag_result",
-    "radar/control": "radar_control",
-    MSG_TYPE_RADAR_SCAN: "radar_scan",
-    "radar/scan_config": "radar_scan_config",
-    "radar/map": "radar_map",
+    MSG_TYPE_MOTOR: "motor",
+    MSG_TYPE_IMU: "imu",
+    MSG_TYPE_RADAR_MM: "radar_mm",
+    MSG_TYPE_RADAR_NAV: "radar_nav",
+    MSG_TYPE_RADAR_NAV_MAP: "radar_nav_map",
     MSG_TYPE_VISION_TARGETS: "vision_targets",
     "perception/trajectory": "perception_trajectory",
-    "depth": "depth",
-    "weather": "weather",
+    MSG_TYPE_TASK_PROG: "task_prog",
+    MSG_TYPE_GPS_STATUS: "gps_status",
+    MSG_TYPE_WEATHER_STATUS: "weather_status",
+    MSG_TYPE_DEPTH_STATUS: "depth_status",
+    MSG_TYPE_BATTERY_STATUS: "battery_status",
+    MSG_TYPE_FUEL_STATUS: "fuel_status",
+    MSG_TYPE_MCU_STATUS: "mcu_status",
+    MSG_TYPE_AIS: "ais",
+    MSG_TYPE_IO_STATUS: "io_status",
+    MSG_TYPE_AUTO_TASK_REPLY: "auto_task_reply",
+    MSG_TYPE_ESTOP_REPLY: "estop_reply",
+    MSG_TYPE_ARM_REPLY: "arm_reply",
+    MSG_TYPE_MODE_REPLY: "mode_reply",
+    MSG_TYPE_MANUAL_CTRL_REPLY: "manual_ctrl_reply",
+    MSG_TYPE_PARAMS_REPLY: "params_reply",
+    MSG_TYPE_AIVIDEO_CTRL_REPLY: "aivideo_ctrl_reply",
+    MSG_TYPE_RADAR_NAV_CONFIG_REPLY: "radar_nav_config_reply",
+    MSG_TYPE_IO_CTRL_REPLY: "io_ctrl_reply",
+    MSG_TYPE_DIAG_REQUEST_REPLY: "diag_request_reply",
 }
 
 DOWNLINK_PARAM_KEYS = {
     "estop": "estop",
     "arm": "arm",
     "mode": "mode",
+    MSG_TYPE_MANUAL_CTRL: "manual_ctrl",
     "auto/task": "auto_task",
-    "radar/control": "radar_control",
-    "video/ctrl": "video_ctrl",
+    MSG_TYPE_PARAMS: "params",
+    MSG_TYPE_AIVIDEO_CTRL: "aivideo_ctrl",
+    MSG_TYPE_RADAR_NAV_CONFIG: "radar_nav_config",
+    MSG_TYPE_IO_CTRL: "io_ctrl",
     "diag/request": "diag_request",
 }
 
@@ -79,7 +134,8 @@ class UsvMqttBridgeNode(Node):
         default_rates = {
             MSG_TYPE_STATUS: 2.0,
             MSG_TYPE_VISION_TARGETS: 10.0,
-            MSG_TYPE_RADAR_SCAN: 10.0,
+            MSG_TYPE_RADAR_NAV: 10.0,
+            MSG_TYPE_TASK_PROG: 20.0,
         }
         self._rate_limiters: Dict[str, RateLimiter] = {}
         for msg_type, hz in default_rates.items():
@@ -118,7 +174,7 @@ class UsvMqttBridgeNode(Node):
                 continue
             qos = (
                 qos_profile_sensor_data
-                if msg_type in {MSG_TYPE_VISION_TARGETS, MSG_TYPE_RADAR_SCAN}
+                if msg_type in {MSG_TYPE_VISION_TARGETS, MSG_TYPE_RADAR_NAV}
                 else QoSProfile(depth=10)
             )
             self._telemetry_subscriptions.append(

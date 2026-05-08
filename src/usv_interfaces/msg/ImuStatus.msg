@@ -1,0 +1,10 @@
+std_msgs/Header header  #标准消息头（时间戳与坐标系）
+float32 yaw_deg  #航向角（度）
+float32 roll_deg  #横滚角（度）
+float32 pitch_deg  #俯仰角（度）
+float32 yaw_rate_dps  #航向角速度（度每秒）
+float32 roll_rate_dps  #横滚角速度（度每秒）
+float32 pitch_rate_dps  #俯仰角速度（度每秒）
+float32 accel_x_mps2  #X轴线加速度（米每二次方秒）
+float32 accel_y_mps2  #Y轴线加速度（米每二次方秒）
+float32 accel_z_mps2  #Z轴线加速度（米每二次方秒）

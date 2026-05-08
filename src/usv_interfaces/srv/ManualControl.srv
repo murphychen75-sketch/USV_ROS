@@ -1,0 +1,9 @@
+int32 x  # X 坐标
+int32 y  # Y 坐标
+int32 z  # Z 坐标
+int32 r  # r 字段含义
+int32 button  # button 字段含义
+---
+bool success  # 是否成功
+int32 code  # 状态码
+string message  # 消息说明

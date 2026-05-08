@@ -1,0 +1,7 @@
+string cmd  # 控制指令
+---
+bool success  # 是否成功
+int32 code  # 状态码
+string message  # 消息说明
+float32 angular_resolution_deg  # angular_resolution_deg 字段含义
+float32 max_range_m  # 量程（米）

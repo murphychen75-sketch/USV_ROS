@@ -19,9 +19,20 @@
 
 ## 主要内容与特性
 
-- **自定义消息与服务**：描述雷达、视觉、AIS、船舶整体状态、控制偏差、动态航路点下发与设备服务等核心语义结构。
+- **自定义消息/服务/动作**：覆盖感知、状态、控制、任务执行（含 MQTT task 进度/完成语义）等核心结构。
 - **模板化传感器话题（Dynamic Topic Templates）**：通过加入 `{sensor_name}` 的占位符进行接口的动态扩展。
 - **全局一致的接入点常量**：所有核心系统节点通信使用统一的常变量定义，杜绝硬编码话题字符串。
+
+## MQTT 对齐说明（2026-05）
+
+本次接口改造目标是让 `usv_interfaces` 能完整承载 `usv_mqtt_bridge` 协议侧语义，尤其是：
+
+- 新增任务进度上报：`event/task_prog` <-> `TaskProgress.msg`
+- 新增任务执行动作：`ExecuteAutoTask.action`
+- 为 MQTT 下行 `service/*` 补齐内部强类型 `srv/*`（`EStop/Arm/SetMode/ManualControl/SetParams/IoControl/DiagRequest/VideoControl/RadarNavConfig`）
+- 补齐一批上行状态类消息（如 `AlarmEvent`、`DiagResult`、`McuStatus`、`GpsStatus`、`BatteryStatus`、`FuelStatus`、`IoStatus`、`RadarNavScan`、`RadarNavMap` 等）
+
+> 注意：`usv_interfaces` 只定义 ROS 语义，不直接定义 MQTT topic；具体协议映射在 `usv_comm/usv_mqtt_bridge/docs/message_contract.md`。
 
 ## 仓库结构
 
@@ -30,16 +41,21 @@ usv_interfaces/
 ├── CMakeLists.txt        # 构建规则与消息生成配置
 ├── package.xml           # 节点依赖声明
 ├── msg/                  # 自定义 ROS 2 消息结构定义
-│   ├── VesselState.msg           # 船综合状态 (GNSS+里程计+电池等)
-│   ├── OperationMode.msg         # 运行模式
-│   ├── ControlDeviation.msg      # 控制器偏差输出
-│   ├── Waypoint.msg              # 新增：单航路点定义
-│   ├── WaypointRoute.msg         # 新增：动态航路点集合
-│   └── (各类目标追踪与检测 Array ...)
+│   ├── VesselState.msg
+│   ├── TaskProgress.msg          # 新增：任务进度（event/task_prog 对齐）
+│   ├── AlarmEvent.msg / DiagResult.msg
+│   ├── JetsonStatus.msg / McuStatus.msg
+│   ├── GpsStatus.msg / WeatherStatus.msg / DepthStatus.msg
+│   ├── BatteryStatus.msg / FuelStatus.msg / IoStatus.msg / AisRaw.msg
+│   ├── RadarNavScan.msg / RadarNavMap.msg / RadarMmObstacles.msg
+│   └── ...（其余消息见 CMakeLists.txt 的 MSG_FILES）
 ├── srv/                  
-│   └── ControlDevice.srv         # 外部设备控制请求
+│   ├── EStop.srv / Arm.srv / SetMode.srv
+│   ├── ManualControl.srv / SetParams.srv
+│   ├── IoControl.srv / DiagRequest.srv
+│   └── VideoControl.srv / RadarNavConfig.srv
 ├── action/               
-│   └── ExecuteMission.action     # 任务管线异步执行动作
+│   └── ExecuteAutoTask.action    # MQTT auto_task 对齐动作
 ├── include/usv_interfaces/
 │   └── topics.hpp        # C++ 端统一 Topics与Templates 常量头文件
 └── usv_interfaces/
@@ -60,10 +76,25 @@ usv_interfaces/
 | :--- | :--- | :--- | :--- |
 | `TOPIC_VESSEL_STATE` | `/usv/state/vessel` | `usv_interfaces/VesselState` | USV整体融合状态 |
 | `TOPIC_CONTROL_DEVIATION`| `/usv/control/deviation` | `usv_interfaces/ControlDeviation` | 当前控制偏误与状态 |
-| `TOPIC_CONTROL_MODE` | `/usv/control/mode` | `usv_interfaces/OperationMode` | 当前作业模式 |
-| `TOPIC_WAYPOINT_ROUTE` | `/usv/control/waypoint_route`| `usv_interfaces/WaypointRoute` | **[动态下发]** 局部路径点列表 |
-| `TOPIC_CMD_VEL` | `/cmd_vel` | `geometry_msgs/Twist` | 速度控制协议 |
-| `TOPIC_CMD_THRUSTER_LEFT`| `/wamv/thrusters/left_thrust/cmd_thrust`| `std_msgs/Float64MultiArray` | （底层控制保留）左侧推力指令 |
+| `TOPIC_TASK_PROGRESS` | `/usv/task/progress` | `usv_interfaces/TaskProgress` | MQTT `event/task_prog` 对齐 |
+| `ACTION_EXECUTE_AUTO_TASK` | `/usv/task/execute_auto_task` | `usv_interfaces/action/ExecuteAutoTask` | MQTT `service/auto_task` 对齐 |
+| `SERVICE_ESTOP` | `/usv/service/estop` | `usv_interfaces/srv/EStop` | 急停服务 |
+| `SERVICE_SET_MODE` | `/usv/service/set_mode` | `usv_interfaces/srv/SetMode` | 模式切换服务 |
+| `SERVICE_DIAG_REQUEST` | `/usv/service/diag_request` | `usv_interfaces/srv/DiagRequest` | 自检请求服务 |
+
+## 去重执行结论（已执行）
+
+本包已按 MQTT 对齐策略直接移除旧重复接口，不再保留兼容入口：
+
+- 已删除 `ControlDevice.srv`（由 `IoControl/VideoControl/DiagRequest/...` 专用服务替代）
+- 已删除 `ExecuteMission.action`（由 `ExecuteAutoTask.action` 替代）
+- 已移除旧常量 `TOPIC_CONTROL_MODE`、`TOPIC_WAYPOINT_ROUTE`
+
+保留原则：
+
+1. 控制请求统一走 `srv/*` 或 `action/*`。  
+2. 状态/进度统一走专用 `msg` topic（如 `TOPIC_TASK_PROGRESS`）。  
+3. MQTT 映射唯一基准为 `usv_mqtt_bridge/docs/message_contract.md`。  
 
 ### 2. 传感器动态模板 (Dynamic Templates) - **重要**
 
@@ -93,20 +124,35 @@ self.sub = self.create_subscription(Image, real_topic, self.img_callback, 10)
 
 ## 核心消息接口字段 (Messages Reference)
 
-### 1. 动态航路点接口 (新增)
-用于替代繁重的任务重载，使得规划算法可按需随时推送期望点序列：
+### 1. 任务执行接口
+用于统一承载 MQTT `service/auto_task` 的请求/反馈/结果语义：
 
-**`Waypoint.msg`**
+**`ExecuteAutoTask.action`（新增）**
 ```yaml
-float64 latitude           # 目标点纬度
-float64 longitude          # 目标点经度
-float64 heading_target     # 期望到达该点时的艏向角 (rad)
-float32 speed_target       # 航段期望速度 (m/s)
-```
-**`WaypointRoute.msg`**
-```yaml
-std_msgs/Header header
+# Goal
+string task_id
+string command
 usv_interfaces/Waypoint[] waypoints
+string mode
+bool loop_execution
+---
+# Result
+bool success
+int32 code
+uint8 final_state
+string task_id
+int32 error_code
+string message
+---
+# Feedback
+string task_id
+uint8 state
+float32 progress_percent
+uint32 current_waypoint_index
+string status_text
+int32 error_code
+uint64 start_time_ms
+uint64 end_time_ms
 ```
 
 ### 2. USV 全局状态结构
@@ -149,7 +195,8 @@ source install/setup.bash
 ```cpp
 #include <rclcpp/rclcpp.hpp>
 #include <usv_interfaces/msg/vessel_state.hpp>
-#include <usv_interfaces/msg/waypoint_route.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
+#include <usv_interfaces/action/execute_auto_task.hpp>
 #include <usv_interfaces/topics.hpp> // 引入宏定义常量
 
 // ... 节点初始化略
@@ -157,13 +204,10 @@ source install/setup.bash
 auto state_pub_ = this->create_publisher<usv_interfaces::msg::VesselState>(
     usv_interfaces::TOPIC_VESSEL_STATE, 10);
 
-// 2. 订阅动态航路点
-auto wp_sub_ = this->create_subscription<usv_interfaces::msg::WaypointRoute>(
-    usv_interfaces::TOPIC_WAYPOINT_ROUTE, 10,
-    [](const usv_interfaces::msg::WaypointRoute::SharedPtr msg) {
-        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Received %zu waypoints", msg->waypoints.size());
-    }
-);
+// 2. 发送自动任务 Action Goal（示意）
+using ExecuteAutoTask = usv_interfaces::action::ExecuteAutoTask;
+auto action_client = rclcpp_action::create_client<ExecuteAutoTask>(
+    node, usv_interfaces::ACTION_EXECUTE_AUTO_TASK);
 ```
 
 ---

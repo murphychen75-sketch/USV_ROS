@@ -1,0 +1,7 @@
+bool streaming  # 视频流
+string camera_id  # 唯一标识
+string url  # 流地址
+---
+bool success  # 是否成功
+int32 code  # 状态码
+string message  # 消息说明

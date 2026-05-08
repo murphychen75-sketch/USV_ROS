@@ -1,7 +1,24 @@
+import sys
+
 from setuptools import find_packages, setup
 
 
 package_name = "usv_mqtt_bridge"
+
+# Some colcon/ament tooling variants may forward an '--editable' flag directly to
+# setup.py. setuptools' distutils argument parser does not recognize it, so we
+# strip it here to keep builds compatible across environments.
+def _strip_unsupported_flag(flag: str, expects_value: bool = False) -> None:
+    while flag in sys.argv:
+        idx = sys.argv.index(flag)
+        sys.argv.pop(idx)
+        if expects_value and idx < len(sys.argv):
+            sys.argv.pop(idx)
+
+
+_strip_unsupported_flag("--editable", expects_value=False)
+_strip_unsupported_flag("--build-directory", expects_value=True)
+_strip_unsupported_flag("--uninstall", expects_value=False)
 
 
 setup(

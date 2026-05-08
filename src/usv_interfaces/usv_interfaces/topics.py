@@ -47,15 +47,24 @@ TOPIC_CMD_THRUSTER_RIGHT = "/wamv/thrusters/right_thrust/cmd_thrust" # Type: std
 # ==========================================
 TOPIC_VESSEL_STATE      = "/usv/state/vessel"           # Type: usv_interfaces/VesselState
 TOPIC_CONTROL_DEVIATION = "/usv/control/deviation"      # Type: usv_interfaces/ControlDeviation
-TOPIC_CONTROL_MODE      = "/usv/control/mode"           # Type: usv_interfaces/OperationMode
-TOPIC_WAYPOINT_ROUTE    = "/usv/control/waypoint_route" # Type: usv_interfaces/WaypointRoute
-TOPIC_AUTOPILOT_STATE   = "/usv/state/autopilot"        # Type: mavros_msgs/State (bridge output)
-TOPIC_STATE_VELOCITY    = "/usv/state/velocity"         # Type: geometry_msgs/TwistStamped
-TOPIC_CONTROL_MANUAL_RAW = "/usv/control/manual/raw"    # Type: geometry_msgs/Twist
-TOPIC_JETSON_STATUS     = "/usv/monitor/jetson_status"  # Type: usv_interfaces/JetsonStatus
-TOPIC_HEARTBEAT         = "/usv/monitor/heartbeat"      # Type: usv_interfaces/HeartbeatStatus
-TOPIC_MAVROS_STATE_RAW  = "/mavros/state"               # Type: mavros_msgs/State
-SERVICE_AUTOPILOT_CONTROL = "/usv/control/autopilot"    # Type: usv_interfaces/srv/AutopilotControl
+TOPIC_AUTOPILOT_STATE   = "/usv/state/autopilot"        # TOPIC_AUTOPILOT_STATE
+TOPIC_STATE_VELOCITY    = "/usv/state/velocity"         # TOPIC_STATE_VELOCITY
+TOPIC_CONTROL_MANUAL_RAW = "/usv/control/manual/raw"    # TOPIC_CONTROL_MANUAL_RAW
+TOPIC_JETSON_STATUS     = "/usv/monitor/jetson_status"  # TOPIC_JETSON_STATUS
+TOPIC_HEARTBEAT         = "/usv/monitor/heartbeat"      # TOPIC_HEARTBEAT
+TOPIC_TASK_PROGRESS     = "/usv/task/progress"          # TOPIC_TASK_PROGRESS
+ACTION_EXECUTE_AUTO_TASK = "/usv/task/execute_auto_task" # ACTION_EXECUTE_AUTO_TASK
+TOPIC_MAVROS_STATE_RAW  = "/mavros/state"               # TOPIC_MAVROS_STATE_RAW
+SERVICE_AUTOPILOT_CONTROL = "/usv/control/autopilot"    # SERVICE_AUTOPILOT_CONTROL
+SERVICE_ESTOP           = "/usv/service/estop"          # SERVICE_ESTOP
+SERVICE_ARM             = "/usv/service/arm"            # SERVICE_ARM
+SERVICE_SET_MODE        = "/usv/service/set_mode"       # SERVICE_SET_MODE
+SERVICE_MANUAL_CONTROL  = "/usv/service/manual_control" # SERVICE_MANUAL_CONTROL
+SERVICE_SET_PARAMS      = "/usv/service/set_params"     # SERVICE_SET_PARAMS
+SERVICE_IO_CONTROL      = "/usv/service/io_control"     # SERVICE_IO_CONTROL
+SERVICE_DIAG_REQUEST    = "/usv/service/diag_request"   # SERVICE_DIAG_REQUEST
+SERVICE_VIDEO_CONTROL   = "/usv/service/video_control"  # SERVICE_VIDEO_CONTROL
+SERVICE_RADAR_NAV_CONFIG = "/usv/service/radar_nav_config" # SERVICE_RADAR_NAV_CONFIG
 
 # ==========================================
 # Topic Template Mapping (For Dynamic Sensors)

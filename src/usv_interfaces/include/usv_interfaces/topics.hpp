@@ -36,17 +36,26 @@ namespace usv_interfaces {
     constexpr char TOPIC_CMD_THRUSTER_RIGHT[] = "/wamv/thrusters/right_thrust/cmd_thrust"; // Float64MultiArray
 
     // 状态与控制 (State & Control) - 自定义话题
-    constexpr char TOPIC_VESSEL_STATE[]      = "/usv/state/vessel";          // usv_interfaces/VesselState
-    constexpr char TOPIC_CONTROL_DEVIATION[] = "/usv/control/deviation";     // usv_interfaces/ControlDeviation
-    constexpr char TOPIC_CONTROL_MODE[]      = "/usv/control/mode";          // usv_interfaces/OperationMode
-    constexpr char TOPIC_WAYPOINT_ROUTE[]    = "/usv/control/waypoint_route";// usv_interfaces/WaypointRoute
-    constexpr char TOPIC_AUTOPILOT_STATE[]   = "/usv/state/autopilot";       // mavros_msgs/State (bridge output)
-    constexpr char TOPIC_STATE_VELOCITY[]    = "/usv/state/velocity";        // geometry_msgs/TwistStamped
-    constexpr char TOPIC_CONTROL_MANUAL_RAW[] = "/usv/control/manual/raw";   // geometry_msgs/Twist
-    constexpr char TOPIC_JETSON_STATUS[]     = "/usv/monitor/jetson_status"; // usv_interfaces/JetsonStatus
-    constexpr char TOPIC_HEARTBEAT[]         = "/usv/monitor/heartbeat";     // usv_interfaces/HeartbeatStatus
-    constexpr char TOPIC_MAVROS_STATE_RAW[]  = "/mavros/state";              // mavros_msgs/State
-    constexpr char SERVICE_AUTOPILOT_CONTROL[] = "/usv/control/autopilot";   // usv_interfaces/srv/AutopilotControl
+    constexpr char TOPIC_VESSEL_STATE[]      = "/usv/state/vessel";          // TOPIC_VESSEL_STATE: usv_interfaces/VesselState
+    constexpr char TOPIC_CONTROL_DEVIATION[] = "/usv/control/deviation";     // TOPIC_CONTROL_DEVIATION: usv_interfaces/ControlDeviation
+    constexpr char TOPIC_AUTOPILOT_STATE[]   = "/usv/state/autopilot";       // TOPIC_AUTOPILOT_STATE: mavros_msgs/State
+    constexpr char TOPIC_STATE_VELOCITY[]    = "/usv/state/velocity";        // TOPIC_STATE_VELOCITY: geometry_msgs/TwistStamped
+    constexpr char TOPIC_CONTROL_MANUAL_RAW[] = "/usv/control/manual/raw";   // TOPIC_CONTROL_MANUAL_RAW: geometry_msgs/Twist
+    constexpr char TOPIC_JETSON_STATUS[]     = "/usv/monitor/jetson_status"; // TOPIC_JETSON_STATUS: usv_interfaces/JetsonStatus
+    constexpr char TOPIC_HEARTBEAT[]         = "/usv/monitor/heartbeat";     // TOPIC_HEARTBEAT: usv_interfaces/HeartbeatStatus
+    constexpr char TOPIC_TASK_PROGRESS[]     = "/usv/task/progress";         // TOPIC_TASK_PROGRESS: usv_interfaces/TaskProgress
+    constexpr char ACTION_EXECUTE_AUTO_TASK[] = "/usv/task/execute_auto_task"; // ACTION_EXECUTE_AUTO_TASK: usv_interfaces/action/ExecuteAutoTask
+    constexpr char TOPIC_MAVROS_STATE_RAW[]  = "/mavros/state";              // TOPIC_MAVROS_STATE_RAW: mavros_msgs/State
+    constexpr char SERVICE_AUTOPILOT_CONTROL[] = "/usv/control/autopilot";   // SERVICE_AUTOPILOT_CONTROL: usv_interfaces/srv/AutopilotControl
+    constexpr char SERVICE_ESTOP[]           = "/usv/service/estop";         // SERVICE_ESTOP: usv_interfaces/srv/EStop
+    constexpr char SERVICE_ARM[]             = "/usv/service/arm";           // SERVICE_ARM: usv_interfaces/srv/Arm
+    constexpr char SERVICE_SET_MODE[]        = "/usv/service/set_mode";      // SERVICE_SET_MODE: usv_interfaces/srv/SetMode
+    constexpr char SERVICE_MANUAL_CONTROL[]  = "/usv/service/manual_control"; // SERVICE_MANUAL_CONTROL: usv_interfaces/srv/ManualControl
+    constexpr char SERVICE_SET_PARAMS[]      = "/usv/service/set_params";    // SERVICE_SET_PARAMS: usv_interfaces/srv/SetParams
+    constexpr char SERVICE_IO_CONTROL[]      = "/usv/service/io_control";    // SERVICE_IO_CONTROL: usv_interfaces/srv/IoControl
+    constexpr char SERVICE_DIAG_REQUEST[]    = "/usv/service/diag_request";  // SERVICE_DIAG_REQUEST: usv_interfaces/srv/DiagRequest
+    constexpr char SERVICE_VIDEO_CONTROL[]   = "/usv/service/video_control"; // SERVICE_VIDEO_CONTROL: usv_interfaces/srv/VideoControl
+    constexpr char SERVICE_RADAR_NAV_CONFIG[] = "/usv/service/radar_nav_config"; // SERVICE_RADAR_NAV_CONFIG: usv_interfaces/srv/RadarNavConfig
 
     // 动态传感器话题模板 (Dynamic Sensor Topic Templates)
     constexpr char TEMPLATE_CAMERA[] = "/sensors/camera/{sensor_name}/image_raw";

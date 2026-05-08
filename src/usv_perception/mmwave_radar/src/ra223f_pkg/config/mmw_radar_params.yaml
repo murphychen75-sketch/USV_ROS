@@ -1,0 +1,27 @@
+mmw_radar_node:
+  ros__parameters:
+    # 运行模式: both / a / b
+    run_mode: "both"
+
+    # 雷达网络参数
+    multicast_ip: "224.0.2.3"
+    multicast_port: 42104
+    unicast_ip: "10.13.2.115"
+    unicast_port: 42404
+    multicast_interface_ip: "0.0.0.0"
+
+    # 本机单播发送端口扫描范围
+    local_port_start: 50000
+    local_port_end: 65535
+
+    # 输入话题
+    odom_topic: "/mavros/local_position/odom"
+    vehicle_speed_topic: "/VCU_status/vehicle_feedback"
+    vehicle_speed_is_signed_longitudinal: false
+    imu_topic: "/imu/data"
+
+    # 输出话题
+    pointcloud_topic: "/mmw_radar/pointcloud_topic"
+    object_topic: "/mmw_radar/objectList_topic"
+    object_marker_topic: "/mmw_radar/object_marker"
+    frame_id: "mmw_radar"

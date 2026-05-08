@@ -16,10 +16,42 @@ find_package(rosidl_default_generators REQUIRED)
 
 # 定义消息文件
 set(MSG_FILES
+  msg/AIVisionTarget.msg
+  msg/AIVisionTargets.msg
+  msg/AlarmEvent.msg
+  msg/AisRaw.msg
+  msg/BatteryInfo.msg
+  msg/BatteryStatus.msg
+  msg/BBox2D.msg
   msg/ControlDeviation.msg
+  msg/DepthPosition.msg
+  msg/DepthStatus.msg
+  msg/DiagModuleStatus.msg
+  msg/DiagResult.msg
+  msg/DiagSummary.msg
+  msg/FuelStatus.msg
+  msg/GpsStatus.msg
+  msg/ImuStatus.msg
+  msg/IoDeviceStatus.msg
+  msg/IoStatus.msg
   msg/OperationMode.msg
   msg/JetsonStatus.msg
   msg/HeartbeatStatus.msg
+  msg/McuStatus.msg
+  msg/MissionDelta.msg
+  msg/MotorStatus.msg
+  msg/PerceptionTrajectory.msg
+  msg/PerceptionTrajectories.msg
+  msg/PipelineTimestamp.msg
+  msg/RadarMmObstacle.msg
+  msg/RadarMmObstacles.msg
+  msg/RadarNavMap.msg
+  msg/RadarNavMapOrigin.msg
+  msg/RadarNavScan.msg
+  msg/RadarNavTarget.msg
+  msg/TaskProgress.msg
+  msg/TrajectoryPoint.msg
+  msg/VideoStreamStatus.msg
   msg/VisionDetection.msg
   msg/VisionDetectionArray.msg
   msg/MmwaveTarget.msg
@@ -33,17 +65,27 @@ set(MSG_FILES
   msg/GlobalTrack.msg
   msg/GlobalTrackArray.msg
   msg/VesselState.msg
+  msg/WaterDepth.msg
   msg/Waypoint.msg
   msg/WaypointRoute.msg
+  msg/WeatherStatus.msg
 )
 
 set(SRV_FILES
-  srv/ControlDevice.srv
+  srv/Arm.srv
   srv/AutopilotControl.srv
+  srv/DiagRequest.srv
+  srv/EStop.srv
+  srv/IoControl.srv
+  srv/ManualControl.srv
+  srv/RadarNavConfig.srv
+  srv/SetMode.srv
+  srv/SetParams.srv
+  srv/VideoControl.srv
 )
 
 set(ACTION_FILES
-  action/ExecuteMission.action
+  action/ExecuteAutoTask.action
 )
 
 # 生成 ROS 接口代码
