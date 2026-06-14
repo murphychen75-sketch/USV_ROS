@@ -1,4 +1,4 @@
 [submodule "src/usv_simulation"]
 	path = src/usv_simulation
 	url = git@github.com:murphychen75-sketch/USV_Simulation.git
-	branch = master
+	branch = main

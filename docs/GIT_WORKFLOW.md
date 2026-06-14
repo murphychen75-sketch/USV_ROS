@@ -127,7 +127,7 @@ colcon build --symlink-install
 
 ## 6. `usv_simulation` 子模块策略
 
-`usv_simulation` 只服务仿真开发和仿真验证，实船部署默认不依赖它。主仓通过 submodule 锁定其 commit 指针，远程仓库为 `git@github.com:murphychen75-sketch/USV_Simulation.git`（默认分支 `master`）。
+`usv_simulation` 只服务仿真开发和仿真验证，实船部署默认不依赖它。主仓通过 submodule 锁定其 commit 指针，远程仓库为 `git@github.com:murphychen75-sketch/USV_Simulation.git`（默认分支 `main`）。
 
 ### 6.1 默认克隆主仓
 
