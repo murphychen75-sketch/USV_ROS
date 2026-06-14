@@ -13,7 +13,7 @@
 | 目录 | 角色 |
 |------|------|
 | **`usv_interfaces`** | 全工程统一消息 / 服务 / 动作与 topic 常量（C++/Python） |
-| **`usv_simulation`** | 可选仿真平台：Gazebo、VRX、传感器插件、`usv_sim_full` 主入口、文档与 Docker 说明等；后续按 submodule 管理 |
+| **`usv_simulation`** | 可选仿真平台（submodule）：Gazebo、VRX、传感器插件、`usv_sim_full` 主入口、文档与 Docker 说明等 |
 | **`usv_comm`** | 通信桥：MAVLink、MQTT 等 |
 | **`usv_perception`** | 感知相关驱动与 AIS 子工程 |
 | **`usv_monitor`** | 监控相关节点与 launch |
@@ -96,7 +96,7 @@ usv_simulation/
 - 仿真「怎么跑、怎么配」以 **`usv_sim_full`** 与 **`docs/docs_v3/QUICK_START.md`** 为准。
 - **`vrx/`** 内为多条独立 ROS 包（`vrx_gz`、`wamv_description` 等），通常随仿真依赖一并构建。
 - **`sensor_plugins/`** 下各目录多为独立包（各自 `package.xml`）。
-- `usv_simulation` 不属于实船运行必要依赖；后续作为可选 submodule 时，非仿真开发者可不初始化该目录。
+- `usv_simulation` 不属于实船运行必要依赖；已作为 submodule 指向 `murphychen75-sketch/USV_Simulation`，非仿真开发者可不初始化该目录。
 
 ---
 

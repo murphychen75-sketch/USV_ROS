@@ -13,7 +13,7 @@
 - 实船运行需要的感知、融合、控制、监控、launch、config 与部署说明。
 - CI、文档、开发规范、版本记录与集成层配置。
 
-`src/usv_simulation` 定位为仿真环境，不属于实船运行的必要依赖。该目录后续应作为可选 submodule 管理：需要仿真的开发者按需初始化，不参与实船最小部署。
+`src/usv_simulation` 定位为仿真环境，不属于实船运行的必要依赖。该目录已作为可选 submodule 管理，指向 `murphychen75-sketch/USV_Simulation`；需要仿真的开发者按需初始化，不参与实船最小部署。
 
 ## 2. 基本原则
 
@@ -127,14 +127,14 @@ colcon build --symlink-install
 
 ## 6. `usv_simulation` 子模块策略
 
-`usv_simulation` 只服务仿真开发和仿真验证，实船部署默认不依赖它。后续完成 submodule 化后，主仓只保存其 commit 指针。
+`usv_simulation` 只服务仿真开发和仿真验证，实船部署默认不依赖它。主仓通过 submodule 锁定其 commit 指针，远程仓库为 `git@github.com:murphychen75-sketch/USV_Simulation.git`（默认分支 `master`）。
 
 ### 6.1 默认克隆主仓
 
 非仿真开发者可以只克隆主仓：
 
 ```bash
-git clone git@github.com:CCZH-Vessel-Algor-Team/USV_ROS.git
+git clone git@github.com:murphychen75-sketch/USV_ROS.git
 cd USV_ROS
 ```
 
@@ -151,7 +151,7 @@ git submodule update --init --recursive src/usv_simulation
 如果首次克隆时就需要完整仿真环境，也可以使用：
 
 ```bash
-git clone --recursive git@github.com:CCZH-Vessel-Algor-Team/USV_ROS.git
+git clone --recursive git@github.com:murphychen75-sketch/USV_ROS.git
 ```
 
 ### 6.3 仿真改动提交流程
