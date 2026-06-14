@@ -20,7 +20,6 @@ setup(
     maintainer_email='your@email.com',
     description='USV MAVLink bridge package',
     license='Apache-2.0',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'heartbeat = usv_mavlink_bridge.mav_heartbeat:main',

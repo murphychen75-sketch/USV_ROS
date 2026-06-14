@@ -1,11 +1,10 @@
-# 毫米波雷达最小验证：世界 sydney_regatta，无自定义障碍/动态场景。
-# 船位对准 worlds/sydney_regatta.sdf 中 mb_marker_buoy_red（约 x=-528, y=191），spawn 在浮标西侧，
-# yaw=0 使 base_link +X 指向浮标，便于毫米波与激光同时观察同一目标。
+# 毫米波雷达最小验证：开阔水面世界 sydney_regatta_open_water（无岸边/浮标），无自定义障碍/动态场景。
+# 船体生成在原点附近，便于观察海面与传感器。
 # 激光雷达与毫米波水平位置一致（相对 base_link 均为 xyz 0,0），激光 z 比毫米波高 0.1 m，用于对照点云。
 # 启动：ros2 launch usv_sim_full main.launch.py config_path:=$(ros2 pkg prefix usv_sim_full)/share/usv_sim_full/config/mmwave_sydney_minimal.yaml
 # 内参仍用与本文件同目录的 sensor_config.yaml（由 sensor_config_path 指定）。
 environment:
-  world_name: sydney_regatta
+  world_name: sydney_regatta_open_water
 sensor_config_path: config/sensor_config.yaml
 obstacles:
   fixed_list: []
@@ -21,10 +20,10 @@ robot_1:
   thruster_config: CUSTOM
   thrusters:
     enabled: true
-  # [x, y, z, roll, pitch, yaw] 世界系；浮标 mb_marker_buoy_red 约在 (-528, 191)
+  # [x, y, z, roll, pitch, yaw] 世界系；开阔水面原点附近
   spawn_pose:
-  - -542.0
-  - 191.0
+  - 0.0
+  - 0.0
   - 0.5
   - 0.0
   - 0.0

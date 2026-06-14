@@ -38,10 +38,12 @@ setup(
     maintainer_email="cursor@example.com",
     description="ROS 2 MQTT bridge node for USV telemetry and commands.",
     license="MIT",
-    tests_require=["pytest"],
     entry_points={
         "console_scripts": [
             "usv_mqtt_bridge_node = usv_mqtt_bridge.node:main",
+            "topic_json_adapter_node = usv_mqtt_bridge.adapters.topic:main",
+            "service_json_adapter_node = usv_mqtt_bridge.adapters.service:main",
+            "action_json_adapter_node = usv_mqtt_bridge.adapters.action:main",
         ],
     },
 )

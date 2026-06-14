@@ -18,8 +18,8 @@ camera:
   default:
     update_rate: 23                    # 相机更新频率 (Hz)
     horizontal_fov: 0.8                # 水平视场角 (弧度)
-    width: 1920                        # 图像宽度 (像素)
-    height: 1080                       # 图像高度 (像素)
+    width: 640                        # 图像宽度 (像素)
+    height: 480                       # 图像高度 (像素)
     near_clip: 5.1                     # 近裁剪面距离 (m)
     far_clip: 230                      # 远裁剪面距离 (m)
     noise_stddev: 0.02                 # 图像噪声标准差

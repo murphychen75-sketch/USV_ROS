@@ -2,7 +2,8 @@
 
 **说明**：本仓库根目录为 **USV_ROS**（ROS 2 colcon 工作区）。源码集中在 **`src/`** 下；不存在名为 `usv_ros` 的单独顶层目录，本文自 **`src/`** 向下归纳目录与 ROS 包边界。
 
-**生成目的**：快速对照「域 → 包 → 典型内容」，详细仿真编排另见  
+**生成目的**：快速对照「域 → 包 → 典型内容」。团队协作、分支、PR 与 `usv_simulation` 可选 submodule 策略见  
+[`docs/GIT_WORKFLOW.md`](GIT_WORKFLOW.md)；详细仿真编排另见  
 [`src/usv_simulation/docs/docs_v3/仿真仓库结构说明.md`](../src/usv_simulation/docs/docs_v3/仿真仓库结构说明.md)。
 
 ---
@@ -12,10 +13,11 @@
 | 目录 | 角色 |
 |------|------|
 | **`usv_interfaces`** | 全工程统一消息 / 服务 / 动作与 topic 常量（C++/Python） |
-| **`usv_simulation`** | 仿真平台：Gazebo、VRX、传感器插件、`usv_sim_full` 主入口、文档与 Docker 说明等 |
+| **`usv_simulation`** | 可选仿真平台：Gazebo、VRX、传感器插件、`usv_sim_full` 主入口、文档与 Docker 说明等；后续按 submodule 管理 |
 | **`usv_comm`** | 通信桥：MAVLink、MQTT 等 |
+| **`usv_perception`** | 感知相关驱动与 AIS 子工程 |
 | **`usv_monitor`** | 监控相关节点与 launch |
-| **`usv_fusion`** | 融合与 AIS 子工程（含大型 `bev/`、嵌套 `ROS_AIS_ws-main`） |
+| **`usv_fusion`** | 融合相关子工程（含大型 `bev/`） |
 
 ---
 
@@ -67,7 +69,7 @@ usv_monitor/
 
 ---
 
-## 5. `usv_simulation`（主干，子目录多）
+## 5. `usv_simulation`（可选仿真环境，子目录多）
 
 ```
 usv_simulation/
@@ -94,14 +96,15 @@ usv_simulation/
 - 仿真「怎么跑、怎么配」以 **`usv_sim_full`** 与 **`docs/docs_v3/QUICK_START.md`** 为准。
 - **`vrx/`** 内为多条独立 ROS 包（`vrx_gz`、`wamv_description` 等），通常随仿真依赖一并构建。
 - **`sensor_plugins/`** 下各目录多为独立包（各自 `package.xml`）。
+- `usv_simulation` 不属于实船运行必要依赖；后续作为可选 submodule 时，非仿真开发者可不初始化该目录。
 
 ---
 
-## 6. `usv_fusion`
+## 6. `usv_perception`
 
 ```
-usv_fusion/
-├── bev/                        # BEV 融合相关（含 mmdetection3d、bevfusion 等大体积子树）
+usv_perception/
+├── mmwave_radar/               # 毫米波雷达驱动与解析节点
 └── ROS_AIS_ws-main/            # AIS 子工作区式目录
     ├── bag_files/
     └── src/
@@ -113,12 +116,25 @@ usv_fusion/
 
 **要点**：
 
-- **`bev/`** 体量极大，工程规则中常 **不作为仿真最小构建集**；按需单独编译或排除。
 - **`ROS_AIS_ws-main/src/*`** 为独立接口与节点包；与主栈 **`usv_interfaces`** 区分，集成时注意话题与依赖边界。
+- `mmwave_radar/` 目录名与包名可能不一致，构建时以 `package.xml` 中的包名为准。
 
 ---
 
-## 7. ROS 2 包清单（`src/` 内 `package.xml`）
+## 7. `usv_fusion`
+
+```
+usv_fusion/
+└── bev/                        # BEV 融合相关（含 mmdetection3d、bevfusion 等大体积子树）
+```
+
+**要点**：
+
+- **`bev/`** 体量极大，通常不作为实船最小构建集或仿真最小构建集；按需单独编译或排除。
+
+---
+
+## 8. ROS 2 包清单（`src/` 内 `package.xml`）
 
 下列包可直接用于 `colcon build --packages-select <name>`（路径相对 `src/`）：
 
@@ -143,18 +159,18 @@ usv_fusion/
 | `wamv_description` | `usv_simulation/vrx/vrx_urdf/wamv_description/` |
 | `wamv_gazebo` | `usv_simulation/vrx/vrx_urdf/wamv_gazebo/` |
 | `vrx_gazebo` | `usv_simulation/vrx/vrx_urdf/vrx_gazebo/` |
-| `ais_interfaces` | `usv_fusion/ROS_AIS_ws-main/src/ais_interfaces/` |
-| `ais_launch` | `usv_fusion/ROS_AIS_ws-main/src/ais_launch/` |
-| `ais_nodes` | `usv_fusion/ROS_AIS_ws-main/src/ais_nodes/` |
-| `ais_reports_interfaces` | `usv_fusion/ROS_AIS_ws-main/src/ais_reports_interfaces/` |
+| `ais_interfaces` | `usv_perception/ROS_AIS_ws-main/src/ais_interfaces/` |
+| `ais_launch` | `usv_perception/ROS_AIS_ws-main/src/ais_launch/` |
+| `ais_nodes` | `usv_perception/ROS_AIS_ws-main/src/ais_nodes/` |
+| `ais_reports_interfaces` | `usv_perception/ROS_AIS_ws-main/src/ais_reports_interfaces/` |
 
 > **`usv_fusion/bev/`**：内含大型第三方子树（如 `mmdetection3d`、`bevfusion`），是否作为独立 ROS 包构建取决于子目录是否含 `package.xml`；通常不作为仿真最小集。
 
 ---
 
-## 8. 维护说明
+## 9. 维护说明
 
-- 增删包或迁移目录后，请同步更新本文件中的 **树形片段** 与 **§7 表格**。
+- 增删包或迁移目录后，请同步更新本文件中的 **树形片段** 与 **§8 表格**。
 - 仿真目录深度展开易与 git 子模块/大量资源冲突，本文只保留 **稳定层级**；需要文件级清单可用：  
   `find src -maxdepth 4 -type d | sort`
 

@@ -20,7 +20,6 @@ setup(
     maintainer_email="developer@usv.com",
     description="USV monitor nodes for Jetson status and heartbeat.",
     license="Apache-2.0",
-    tests_require=["pytest"],
     entry_points={
         "console_scripts": [
             "system_status_node = usv_monitor.system_status_node:main",

@@ -52,10 +52,6 @@ MSG_TYPE_RADAR_NAV_CONFIG_REPLY = "radar_nav_config_reply"
 MSG_TYPE_IO_CTRL_REPLY = "io_ctrl_reply"
 MSG_TYPE_DIAG_REQUEST_REPLY = "diag_request_reply"
 
-# Legacy aliases retained for backward compatibility in tests/tools.
-MSG_TYPE_CONTROL = "control"
-MSG_TYPE_CONFIG = "config"
-
 TIMESTAMP_SENSOR = "sensor_capture_time"
 TIMESTAMP_ALGORITHM = "algorithm_output_time"
 TIMESTAMP_GATEWAY = "gateway_publish_time"
@@ -110,16 +106,6 @@ DOWNLINK_KEYS = (
     MSG_TYPE_RADAR_NAV_CONFIG,
     MSG_TYPE_IO_CTRL,
     MSG_TYPE_DIAG_REQUEST,
-)
-
-ALLOWED_CONTROL_FIELDS = frozenset({"command", "mode", "waypoints", "estop"})
-ALLOWED_CONFIG_FIELDS = frozenset(
-    {
-        "radar_safe_distance_m",
-        "state_rate_hz",
-        "vision_rate_hz",
-        "radar_rate_hz",
-    }
 )
 
 

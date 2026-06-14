@@ -175,7 +175,6 @@ logs/
 *.sqlite
 *.sqlite3
 
-# 本次更新不包含：融合子树、Foxglove SDK 全量、本地 sim_test
-src/usv_fusion/
+# 可选排除：Foxglove SDK 全量、本地 sim_test
 src/usv_simulation/third_party/foxglove-sdk/
 src/usv_simulation/sim_test/

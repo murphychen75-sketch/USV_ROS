@@ -52,7 +52,9 @@ class DynamicObstacle:
         else:
             self.x = 0.0
             self.y = 0.0
-        if len(self.waypoints) > 1:
+        if config.get('spawn_heading_deg') is not None:
+            self.spawn_yaw = math.radians(float(config['spawn_heading_deg']))
+        elif len(self.waypoints) > 1:
             dx = float(self.waypoints[1][0]) - float(self.waypoints[0][0])
             dy = float(self.waypoints[1][1]) - float(self.waypoints[0][1])
             self.spawn_yaw = math.atan2(dy, dx) if abs(dx) + abs(dy) > 1e-9 else 0.0
@@ -76,6 +78,16 @@ class DynamicObstacle:
         if hasattr(self, 'bridge_process') and self.bridge_process:
             self.bridge_process.terminate()
 
+    def world_twist_to_body(self, vx_world: float, vy_world: float) -> Twist:
+        """Gazebo VelocityControl 使用船体系 cmd_vel；航迹速度在 map 系给定。"""
+        c = math.cos(self.spawn_yaw)
+        s = math.sin(self.spawn_yaw)
+        twist = Twist()
+        twist.linear.x = c * vx_world + s * vy_world
+        twist.linear.y = -s * vx_world + c * vy_world
+        twist.angular.z = 0.0
+        return twist
+
 class ScenarioManager(Node):
     def __init__(self):
         super().__init__('scenario_manager')
@@ -97,6 +109,7 @@ class ScenarioManager(Node):
         self.obs_configs = scenario_cfg.get('dynamic_obstacles', [])
         
         self.obstacles = []
+        self._spawn_delay_timers: list = []
 
         # Humble 下 rclpy 对 /world/.../SpawnEntity 常无法与 gz 侧服务端匹配；与 ground_truth_gazebo_models
         # 一致，直接使用 ros_gz_sim create（gz-transport），避免 10s 空等与误导性 WARN。
@@ -308,19 +321,41 @@ class ScenarioManager(Node):
 
     def spawn_obstacles(self):
         for i, cfg in enumerate(self.obs_configs):
-            obs = DynamicObstacle(cfg, self)
-            self.obstacles.append(obs)
+            delay = float(cfg.get('spawn_delay_sec', 0.0))
+            if delay > 0.0:
+                self.get_logger().info(
+                    f"动态障碍 '{cfg.get('name', 'obstacle')}' 将在 {delay:.1f}s 后生成。"
+                )
 
-            obstacle_sdf = self.generate_sdf(obs)
-            self.get_logger().info(
-                f"Preparing dynamic obstacle: requested='{obs.requested_name}', runtime='{obs.name}', "
-                f"waypoints={obs.waypoints}, speed={obs.speed}"
-            )
+                spawn_state = {'done': False}
+                timer_holder: list = []
 
-            self._spawn_with_create_cli(obs, obstacle_sdf)
-            # 错开连续 create，减轻 gz 侧异步读文件与 transport 竞态
-            if i + 1 < len(self.obs_configs):
-                time.sleep(0.3)
+                def _delayed_spawn(ob_cfg=cfg, obs_index=i):
+                    if spawn_state['done']:
+                        return
+                    spawn_state['done'] = True
+                    if timer_holder:
+                        timer_holder[0].cancel()
+                    self._spawn_one_obstacle(ob_cfg, obs_index)
+
+                timer_holder.append(self.create_timer(delay, _delayed_spawn))
+                self._spawn_delay_timers.append(timer_holder[0])
+            else:
+                self._spawn_one_obstacle(cfg, i)
+
+    def _spawn_one_obstacle(self, cfg, index: int):
+        obs = DynamicObstacle(cfg, self)
+        self.obstacles.append(obs)
+
+        obstacle_sdf = self.generate_sdf(obs)
+        self.get_logger().info(
+            f"Preparing dynamic obstacle: requested='{obs.requested_name}', runtime='{obs.name}', "
+            f"waypoints={obs.waypoints}, speed={obs.speed}"
+        )
+
+        self._spawn_with_create_cli(obs, obstacle_sdf)
+        if index + 1 < len(self.obs_configs):
+            time.sleep(0.3)
 
     def _spawn_with_create_cli(self, obs, obstacle_sdf):
         """Spawn an obstacle with ros_gz_sim create as a fallback path."""
@@ -420,12 +455,7 @@ class ScenarioManager(Node):
             obs.x += vx * self.dt
             obs.y += vy * self.dt
             
-            # Publish twist
-            twist = Twist()
-            twist.linear.x = vx
-            twist.linear.y = vy
-            twist.angular.z = 0.0 # pure holonomic translation
-            obs.cmd_vel_pub.publish(twist)
+            obs.cmd_vel_pub.publish(obs.world_twist_to_body(vx, vy))
 
 def main(args=None):
     rclpy.init(args=args)

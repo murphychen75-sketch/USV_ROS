@@ -163,10 +163,18 @@ def generate_launch_description():
         description='是否启动 obstacle_spawner（多船时仅第一艘船应为 true，避免重复生成障碍物）'
     )
 
-    create_entity_delay_arg = DeclareLaunchArgument(
-        'create_entity_delay',
-        default_value='5.0',
-        description='延迟多少秒后再向 Gazebo 请求 spawn 本船（多船时可错开时间，秒）'
+    spawn_stagger_sec_arg = DeclareLaunchArgument(
+        'spawn_stagger_sec',
+        default_value='0.0',
+        description=(
+            '世界与 /clock 就绪后的额外错开时间（秒）；多船时第 idx 艘传 idx*2.0'
+        ),
+    )
+
+    spawn_wait_timeout_sec_arg = DeclareLaunchArgument(
+        'spawn_wait_timeout_sec',
+        default_value='120.0',
+        description='等待 Gazebo create 服务与仿真时钟的最大墙钟时间（秒）',
     )
 
     gz_world_name_arg = DeclareLaunchArgument(
@@ -200,7 +208,8 @@ def generate_launch_description():
     yaw = LaunchConfiguration('Y')
     use_sim_time = LaunchConfiguration('use_sim_time')
     enable_obstacle_spawner = LaunchConfiguration('enable_obstacle_spawner')
-    create_entity_delay = LaunchConfiguration('create_entity_delay')
+    spawn_stagger_sec = LaunchConfiguration('spawn_stagger_sec')
+    spawn_wait_timeout_sec = LaunchConfiguration('spawn_wait_timeout_sec')
     gz_world_name = LaunchConfiguration('gz_world_name')
     verbose_launch = LaunchConfiguration('verbose_launch')
 
@@ -225,38 +234,39 @@ def generate_launch_description():
         )
         return [node]
 
-    # 启动Gazebo实体创建（生成机器人）- 使用ros_gz_sim的create节点
-    # 多船时每个 bringup 各有一个 create，必须用唯一节点名，避免同名冲突。
-    def launch_delayed_create_entity(context, *args, **kwargs):
+    # 等待 /clock 与 /world/<name>/create 就绪后再 spawn（替代固定 create_entity_delay）
+    def launch_spawn_robot_when_ready(context, *args, **kwargs):
         rn = robot_name.perform(context)
-        delay_s = float(create_entity_delay.perform(context))
         world_gz = gz_world_name.perform(context).strip()
-        use_sim_time_val = use_sim_time.perform(context).lower() == 'true'
         v = verbose_launch.perform(context)
-        create_kw = quiet_ros_node_kwargs(v)
         safe = re.sub(r'[^a-zA-Z0-9_]', '_', rn)
-        arg_list = []
-        if world_gz:
-            arg_list.extend(['-world', world_gz])
-        arg_list.extend([
-            '-name', rn,
-            '-x', x_pose.perform(context),
-            '-y', y_pose.perform(context),
-            '-z', z_pose.perform(context),
-            '-R', roll.perform(context),
-            '-P', pitch.perform(context),
-            '-Y', yaw.perform(context),
-            '-file', urdf_path.perform(context),
-        ])
-        create_entity_node = Node(
-            package='ros_gz_sim',
-            executable='create',
-            name=f'gz_create_{safe}',
-            parameters=[{'use_sim_time': use_sim_time_val}],
-            arguments=arg_list + create_kw.get('arguments', []),
-            output=create_kw['output'],
-        )
-        return [TimerAction(period=delay_s, actions=[create_entity_node])]
+        spawn_kw = quiet_ros_node_kwargs(v)
+        # 就绪检测用墙钟轮询，避免 use_sim_time 在 /clock 未到时卡住
+        return [
+            Node(
+                package='usv_sim_full',
+                executable='gz_spawn_robot_when_ready',
+                name=f'gz_spawn_{safe}',
+                parameters=[{
+                    'world_name': world_gz,
+                    'entity_name': rn,
+                    'sdf_file': urdf_path.perform(context),
+                    'x': ParameterValue(x_pose, value_type=float),
+                    'y': ParameterValue(y_pose, value_type=float),
+                    'z': ParameterValue(z_pose, value_type=float),
+                    'roll': ParameterValue(roll, value_type=float),
+                    'pitch': ParameterValue(pitch, value_type=float),
+                    'yaw': ParameterValue(yaw, value_type=float),
+                    'spawn_stagger_sec': ParameterValue(
+                        spawn_stagger_sec, value_type=float
+                    ),
+                    'wait_timeout_sec': ParameterValue(
+                        spawn_wait_timeout_sec, value_type=float
+                    ),
+                }],
+                **spawn_kw,
+            )
+        ]
 
     def launch_unnamespaced_gz_ros_stack(context, *args, **kwargs):
         """避免 PushRosNamespace 对 parameter_bridge 的副作用，保证 /{robot}/odom 等与 YAML 一致。"""
@@ -429,10 +439,11 @@ def generate_launch_description():
         yaw_arg,
         use_sim_time_arg,
         enable_obstacle_spawner_arg,
-        create_entity_delay_arg,
+        spawn_stagger_sec_arg,
+        spawn_wait_timeout_sec_arg,
         gz_world_name_arg,
         verbose_launch_arg,
-        OpaqueFunction(function=launch_delayed_create_entity),
+        OpaqueFunction(function=launch_spawn_robot_when_ready),
         OpaqueFunction(function=launch_obstacle_spawner),  # 障碍物生成器（条件启动）
         robot_scoped_group,
         OpaqueFunction(function=launch_unnamespaced_gz_ros_stack),

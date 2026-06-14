@@ -2,7 +2,7 @@
 ******************************************************************************************
 *  Copyright (C) 2026 MurphyChen, All Rights Reserved                                  *
 *                                                                                        *
-*  @brief    全量仿真主入口 — session_manager 多船、毫米波/海事雷达、按船环境动力学       *
+*  @brief    主启动文件 - 组装各个模块                                                 *
 *  @author   MurphyChen                                                                *
 *  @version  1.0.0                                                                       *
 *  @date     2026.1.21                                                                 *
@@ -10,121 +10,83 @@
 """
 
 import os
-import re
-import shutil
-import subprocess
-import tempfile
-import yaml
-
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import (
-    DeclareLaunchArgument,
-    IncludeLaunchDescription,
-    OpaqueFunction,
-    SetEnvironmentVariable,
-)
-from launch.conditions import IfCondition
+from launch.actions import ExecuteProcess, SetEnvironmentVariable, OpaqueFunction, IncludeLaunchDescription, DeclareLaunchArgument, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
 from launch_ros.actions import Node
-
-from usv_sim_full.launch_config_helpers import (
-    block_enable_env_dynamics,
-    block_env_dynamics_k_gains,
-    block_first_maritime_radar,
-    block_has_maritime_radar,
-    build_mmwave_4d_cloud_parameters,
-    iter_all_block_sensors,
-    load_mmwave_sensor_defaults,
-    launch_verbose_enabled,
-    mmwave_bridge_topics,
-    parse_session_json_from_stdout,
-    ground_truth_gazebo_visual_enabled,
-    merge_ground_truth_gazebo_models_params,
-    quiet_ros_node_kwargs,
-    resolve_ground_truth_user_params_path,
-    resolve_session_robots,
-    scenario_ground_truth_sim_config,
-    session_manager_executable_path,
-    ship_config_blocks,
-    write_ground_truth_node_params_yaml,
-)
+import yaml
+import subprocess
+import json
 
 
 def launch_setup(context, *args, **kwargs):
+    # 获取包路径
+    pkg_share = get_package_share_directory('usv_sim_full')
+    
+    # 获取用户配置路径 (通过LaunchConfiguration)
     config_path = LaunchConfiguration('config_path').perform(context)
-    verbose_s = LaunchConfiguration('verbose_launch').perform(context)
-    gz_headless_s = LaunchConfiguration('gz_headless').perform(context)
-    enable_robot_localization = LaunchConfiguration('enable_robot_localization').perform(
-        context
-    )
-    localization_params_file = LaunchConfiguration('localization_params_file').perform(
-        context
-    )
-    localization_start_delay = LaunchConfiguration('localization_start_delay').perform(
-        context
-    )
-
+    enable_robot_localization = LaunchConfiguration('enable_robot_localization').perform(context)
+    localization_params_file = LaunchConfiguration('localization_params_file').perform(context)
+    localization_start_delay = LaunchConfiguration('localization_start_delay').perform(context)
+    use_static_map_odom_tf = LaunchConfiguration('use_static_map_odom_tf').perform(context)
+    
+    # 读取用户配置获取世界名称
     with open(config_path, 'r') as f:
         user_config = yaml.safe_load(f)
-
+    
     world_name = user_config.get('environment', {}).get('world_name', 'sydney_regatta')
+    
+    # 检查是否启用RViz
     launch_rviz = user_config.get('visualization', {}).get('launch_rviz', True)
 
+    # 从 full_config 现有 sensors 配置中判断是否启用导航雷达处理链路
+    # 约定: 仅当 maritime_radar/radar 类型传感器 enabled=true 时启动 gy_radar_driver
     radar_processing_enabled = False
-    mmwave_enabled = False
-    for sensor in iter_all_block_sensors(user_config):
-        if not sensor.get('enabled', True):
-            continue
-        st = str(sensor.get('type', '')).lower()
-        if st in ('maritime_radar', 'radar'):
+    radar_sensor_name = 'radar'
+    radar_output_topic = '/sensors/radar/nav/sector'
+    for sensor in user_config.get('sensors', []):
+        sensor_type = str(sensor.get('type', '')).lower()
+        if sensor_type in ('maritime_radar', 'radar') and sensor.get('enabled', True):
             radar_processing_enabled = True
-        if st in ('mmwave_radar', 'mmwave'):
-            mmwave_enabled = True
+            radar_sensor_name = str(sensor.get('name', 'radar'))
+            if sensor.get('override_topic'):
+                radar_output_topic = str(sensor.get('override_topic'))
+            break
 
+    # 执行会话管理器脚本，获取URDF、桥接配置、RViz配置和障碍物布局路径
     try:
-        sm_cmd = [
-            session_manager_executable_path(),
-            '--config-path', config_path,
-        ]
-        if launch_verbose_enabled(verbose_s):
-            sm_cmd.append('--verbose')
-        result = subprocess.run(sm_cmd, capture_output=True, text=True, check=True)
-
+        result = subprocess.run([
+            'ros2',
+            'run',
+            'usv_sim_full',
+            'session_manager',
+            '--config-path', config_path
+        ], capture_output=True, text=True, check=True)
+        
         session_output = result.stdout.strip()
-        session_info = parse_session_json_from_stdout(session_output)
-        if launch_verbose_enabled(verbose_s):
-            print(f"Full session manager output: '{session_output}'")
-        else:
-            n_robots = len(session_info.get('robots') or [])
-            print(
-                f'[usv_sim_full] session_manager OK: {n_robots} robot(s), '
-                f'session_dir={session_info.get("session_path", "?")}'
-            )
+        print(f"Full session manager output: '{session_output}'")
+        
+        # 提取JSON部分 - 从 { 开始到最后
+        lines = session_output.split('\n')
+        json_line = None
+        for line in lines:
+            line = line.strip()
+            if line.startswith('{') and line.endswith('}'):
+                json_line = line
+                break
+                
+        if not json_line:
+            raise ValueError(f"No JSON found in output: {session_output}")
+        
+        # 解析返回的JSON
+        session_info = json.loads(json_line)
+        urdf_path = session_info['urdf_path']
+        bridge_yaml_path = session_info['bridge_yaml_path']
         rviz_config_path = session_info['rviz_config_path']
         obstacle_layout_path = session_info['obstacle_layout_path']
-
-        # 使用外部底稿（如 default.rviz）时不再向文件末尾追加 Display：追加写在
-        # Window Geometry 之后会破坏 YAML，RViz 可能空白/异常；default.rviz 已含 Nav2/相机等。
-        rviz_skip_session_append = False
-        rviz_override = LaunchConfiguration('rviz_config_path_override').perform(context).strip()
-        if rviz_override:
-            if os.path.isfile(rviz_override):
-                fd, tmp_rviz = tempfile.mkstemp(prefix='usv_rviz_', suffix='.rviz')
-                os.close(fd)
-                shutil.copy2(rviz_override, tmp_rviz)
-                rviz_config_path = tmp_rviz
-                rviz_skip_session_append = True
-                print(
-                    '[usv_sim_full] RViz: using rviz_config_path_override -> '
-                    f'{tmp_rviz} (source {rviz_override})'
-                )
-            else:
-                print(
-                    f"Warning: rviz_config_path_override not found ({rviz_override!r}); "
-                    'using session_manager RViz config.'
-                )
     except subprocess.CalledProcessError as e:
         print(f"Session manager failed with error: {e}")
         print(f"Stdout: {e.stdout}")
@@ -134,315 +96,171 @@ def launch_setup(context, *args, **kwargs):
         print(f"Error running session manager: {e}")
         raise e
 
-    session_robots = resolve_session_robots(session_info, user_config)
-    ship_blocks = ship_config_blocks(user_config)
-    primary_name = session_robots[0]['name']
+    # 获取机器人配置
+    robot_config = user_config.get('robot', {})
+    robot_name = robot_config.get('name', 'usv')  # 默认使用'usv'作为机器人名
+    spawn_pose = robot_config.get('spawn_pose', [0.0, 0.0, 0.5, 0.0, 0.0, 0.0])
 
-    # --- 追加雷达地图与相机显示（仅 session.rviz 结构；见 rviz_skip_session_append） ---
-    if not rviz_skip_session_append:
-        try:
-            append_text = f"""
-  - Class: rviz_default_plugins/Map
-    Name: Radar OccupancyGrid
-    Topic:
-      Value: /{primary_name}/map/navradar/occupancy_grid
-      Depth: 5
-    Update Topic:
-      Value: /{primary_name}/map/navradar/occupancy_grid_updates
-      Depth: 5
-    Enabled: true
-    Color Scheme: map
-    Draw Behind: false
-    Use Timestamp: false
-  - Class: rviz_default_plugins/Image
-    Name: Front Camera
-    Topic:
-      Value: /{primary_name}/sensors/camera/front_cam/image_raw
-      Depth: 5
-    Enabled: true
-    Normalize Range: false
-"""
-            with open(rviz_config_path, 'a') as f:
-                f.write(append_text)
-        except Exception as e:
-            print(f"Warning: Could not modify rviz config with radar displays: {e}")
-
+    # gy_radar_driver 建图节点默认订阅全局话题，这里显式传入机器人命名空间话题。
+    mapping_input_topic = radar_output_topic
+    if not mapping_input_topic.startswith('/'):
+        mapping_input_topic = '/' + mapping_input_topic
+    if not mapping_input_topic.startswith(f'/{robot_name}/'):
+        mapping_input_topic = f'/{robot_name}{mapping_input_topic}'
+    converter_output_topic = f'/{robot_name}/sensors/radar/nav/points'
+    mapping_output_gridmap_topic = f'/{robot_name}/map/navradar/gridmap'
+    mapping_output_occupancy_topic = f'/{robot_name}/map/navradar/occupancy_grid'
+    
+    # 包含基础设施仿真
     infra_sim_include = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             get_package_share_directory('usv_sim_full'),
             '/launch/components/infra_sim.launch.py'
         ]),
         launch_arguments={
-            'world_name': world_name,
-            'verbose_launch': verbose_s,
-            'gz_headless': gz_headless_s,
+            'world_name': world_name
         }.items()
     )
-
-    launch_items = []
-    if not launch_verbose_enabled(verbose_s):
-        launch_items.append(
-            SetEnvironmentVariable(
-                name='RCUTILS_LOGGING_SEVERITY',
-                value='WARN',
-            )
-        )
-    launch_items.append(infra_sim_include)
-
-    # session.rviz 的 Fixed Frame 为 map；发布 map->{robot}/odom，否则点云/相机等无法变换到 map
-    for ship in session_robots:
-        rname = ship['name']
-        sanitized = re.sub(r"[^A-Za-z0-9_\-]", '_', str(rname))
-        launch_items.append(
-            Node(
-                package='tf2_ros',
-                executable='static_transform_publisher',
-                name=f'map_to_odom_tf_{sanitized}',
-                # use_sim_time 须与 Gazebo /clock 一致，否则 TF 墙钟戳与 Nav2 仿真时刻不一致
-                parameters=[{'use_sim_time': True}],
-                condition=IfCondition(LaunchConfiguration('use_static_map_odom_tf')),
-                **quiet_ros_node_kwargs(
-                    verbose_s,
-                    [
-                        '--frame-id',
-                        'map',
-                        '--child-frame-id',
-                        f'{sanitized}/odom',
-                    ],
-                ),
-            )
-        )
-
-    for idx, ship in enumerate(session_robots):
-        block = ship_blocks[idx] if idx < len(ship_blocks) else {}
-        ship_maritime = block_has_maritime_radar(block)
-        radar_sensor_name, radar_output_topic = block_first_maritime_radar(block)
-        spawn_pose = ship.get('spawn_pose', [0.0, 0.0, 0.5, 0.0, 0.0, 0.0])
-        pe = spawn_pose + [0.0] * (6 - len(spawn_pose))
-
-        robot_launch = IncludeLaunchDescription(
-            PythonLaunchDescriptionSource([
-                get_package_share_directory('usv_sim_full'),
-                '/launch/components/robot_bringup.launch.py'
-            ]),
-            launch_arguments={
-                'robot_name': ship['name'],
-                'urdf_path': ship['urdf_path'],
-                'bridge_config_path': ship['bridge_yaml_path'],
-                'obstacle_layout_path': obstacle_layout_path,
-                'radar_sensor_name': radar_sensor_name,
-                'radar_ros_topic': radar_output_topic,
-                'enable_maritime_radar_bridge': (
-                    'true' if ship_maritime else 'false'
-                ),
-                'enable_obstacle_spawner': 'true' if idx == 0 else 'false',
-                'create_entity_delay': str(5.0 + float(idx) * 2.0),
-                'gz_world_name': world_name,
-                'enable_robot_localization': enable_robot_localization,
-                'localization_params_file': localization_params_file,
-                'localization_start_delay': localization_start_delay,
-                'x': str(pe[0]),
-                'y': str(pe[1]),
-                'z': str(pe[2]),
-                'R': str(pe[3]),
-                'P': str(pe[4]),
-                'Y': str(pe[5]),
-                'use_sim_time': 'true',
-                'verbose_launch': verbose_s,
-            }.items()
-        )
-        launch_items.append(robot_launch)
-
-    scen_gt_cfg = scenario_ground_truth_sim_config(user_config)
-    if scen_gt_cfg.get('enabled'):
-        fd_gt, gt_gen_path = tempfile.mkstemp(prefix='usv_scenario_gt_', suffix='.yaml')
-        os.close(fd_gt)
-        write_ground_truth_node_params_yaml(scen_gt_cfg, gt_gen_path, user_config)
-        gt_user_path = resolve_ground_truth_user_params_path(
-            config_path, scen_gt_cfg.get('params_file')
-        )
-        gt_params = [{'use_sim_time': True}, gt_gen_path]
-        if gt_user_path:
-            gt_params.append(gt_user_path)
-        launch_items.append(
-            Node(
-                package='ground_truth_sim',
-                executable='ground_truth_node',
-                name='scenario_ground_truth_node',
-                parameters=gt_params,
-                **quiet_ros_node_kwargs(verbose_s),
-            )
-        )
-        if ground_truth_gazebo_visual_enabled(scen_gt_cfg):
-            tt = str(scen_gt_cfg.get('tracks_topic') or 'sim/ground_truth').strip()
-            if tt.startswith('/'):
-                tt = tt.lstrip('/')
-            prefix = str(scen_gt_cfg.get('gazebo_model_prefix') or 'gt_ctrv_').strip()
-            if not prefix:
-                prefix = 'gt_ctrv_'
-            gz_spawn_delay = float(scen_gt_cfg.get('spawn_delay_sec', 10.0))
-            gz_svc_wait = float(scen_gt_cfg.get('world_service_wait_sec', 1.0))
-            gz_params = merge_ground_truth_gazebo_models_params(
-                world_name, scen_gt_cfg, tt, prefix, gz_spawn_delay, gz_svc_wait, config_path
-            )
-            launch_items.append(
-                Node(
-                    package='ground_truth_sim',
-                    executable='ground_truth_gazebo_models_node',
-                    name='scenario_ground_truth_gazebo_models',
-                    parameters=[
-                        {'use_sim_time': True},
-                        gz_params,
-                    ],
-                    **quiet_ros_node_kwargs(verbose_s),
-                )
-            )
-
-    mm_defs = load_mmwave_sensor_defaults(config_path, user_config)
-    if mmwave_enabled:
-        for idx, ship in enumerate(session_robots):
-            block = ship_blocks[idx] if idx < len(ship_blocks) else {}
-            sanitized = ship.get('sanitized_name') or re.sub(
-                r"[^A-Za-z0-9_\-]", '_', str(ship['name'])
-            )
-            for sensor in block.get('sensors') or []:
-                if not sensor.get('enabled', True):
-                    continue
-                pair = mmwave_bridge_topics(sensor, sanitized)
-                if pair is None:
-                    continue
-                input_topic, output_topic = pair
-                sname = sensor.get('name', 'mmwave')
-                safe = re.sub(r'[^a-zA-Z0-9_]', '_', f'{sanitized}_{sname}')
-                launch_items.append(
-                    Node(
-                        package='usv_mmwave_sim',
-                        executable='mmwave_4d_cloud_node',
-                        name=f'mmwave_4d_{safe}',
-                        parameters=[
-                            build_mmwave_4d_cloud_parameters(
-                                mm_defs,
-                                input_topic,
-                                output_topic,
-                                f'/{sanitized}/odom',
-                            )
-                        ],
-                        **quiet_ros_node_kwargs(verbose_s),
-                    )
-                )
-
+    
+    # 启动机器人系统（状态发布、实体创建、传感器桥接）
+    robot_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            get_package_share_directory('usv_sim_full'),
+            '/launch/components/robot_bringup.launch.py'
+        ]),
+        launch_arguments={
+            'robot_name': robot_name,
+            'urdf_path': urdf_path,
+            'bridge_config_path': bridge_yaml_path,
+            'obstacle_layout_path': obstacle_layout_path,
+            'radar_sensor_name': radar_sensor_name,
+            'radar_ros_topic': radar_output_topic,
+            'enable_robot_localization': enable_robot_localization,
+            'localization_params_file': localization_params_file,
+            'localization_start_delay': localization_start_delay,
+            'x': str(spawn_pose[0]),
+            'y': str(spawn_pose[1]),
+            'z': str(spawn_pose[2]),
+            'R': str(spawn_pose[3]),
+            'P': str(spawn_pose[4]),
+            'Y': str(spawn_pose[5]),
+            'use_sim_time': 'true'
+        }.items()
+    )
+    
+    # 启动可视化（RViz）
     viz_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             get_package_share_directory('usv_sim_full'),
             '/launch/components/visualization.launch.py'
         ]),
         launch_arguments={
-            'rviz_config_path': rviz_config_path,
-            'verbose_launch': verbose_s,
+            'rviz_config_path': rviz_config_path
         }.items()
     )
 
-    if launch_rviz:
-        launch_items.append(viz_launch)
+    # 启动导航雷达解算和建图节点（按 full_config 传感器开关启用）
+    radar_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            get_package_share_directory('gy_radar_driver'),
+            '/launch/radar_controller.launch.py'
+        ]),
+        launch_arguments={
+            'namespace': robot_name,
+            'enable_control': 'false',
+            'enable_data': 'false',
+            'enable_arpa': 'false',
+            'enable_tf': 'false',
+            'enable_mapping': 'true',
+            'enable_converter': 'true',
+            'mapping_input_topic': mapping_input_topic,
+            'converter_input_topic': mapping_input_topic,
+            'converter_output_topic': converter_output_topic,
+            'mapping_output_gridmap_topic': mapping_output_gridmap_topic,
+            'mapping_output_occupancy_topic': mapping_output_occupancy_topic,
+            'use_sim_time': 'true'
+        }.items()
+    )
+    
 
+    import re
+    sanitized_robot_name = re.sub(r"[^A-Za-z0-9_\-]", '_', str(robot_name))
+    
+    
     scenario_manager_node = Node(
         package="usv_sim_full",
         executable="scenario_manager_node",
         name="scenario_manager_node",
+        output="screen",
         parameters=[{
             "config_path": config_path
-        }],
-        **quiet_ros_node_kwargs(verbose_s),
+        }]
     )
-    launch_items.append(scenario_manager_node)
 
-    for ship in session_robots:
-        rname = ship['name']
-        sanitized = re.sub(r"[^A-Za-z0-9_\-]", '_', str(rname))
-        wrapper_node = Node(
-            package='usv_sim_full',
-            executable='usv_sim_wrapper',
-            name=f'usv_sim_wrapper_{sanitized}',
-            namespace=rname,
-            parameters=[{
-                'odom_topic': f'/{sanitized}/odom',
-                'gps_topic': f'/{sanitized}/sensors/gps/gps_sensor/data'
-            }],
-            remappings=[
-                ('/usv/state/vessel', f'/{sanitized}/state/vessel'),
-            ],
-            **quiet_ros_node_kwargs(verbose_s),
-        )
-        launch_items.append(wrapper_node)
+    wrapper_node = Node(
+        package='usv_sim_full',
+        executable='usv_sim_wrapper',
+        name='usv_sim_wrapper',
+        namespace=robot_name,
+        output='screen',
+        parameters=[{
+            'odom_topic': f'/model/{sanitized_robot_name}/odometry',
+            'gps_topic': f'/{sanitized_robot_name}/sensors/gps/gps_sensor/data'
+        }],
+        remappings=[
+            ('/usv/state/vessel', f'/{sanitized_robot_name}/state/vessel'),
+        ],
+        
+    )
 
-    for idx, ship in enumerate(session_robots):
-        block = ship_blocks[idx] if idx < len(ship_blocks) else {}
-        if not block_enable_env_dynamics(block):
-            continue
-        rname = ship['name']
-        sanitized = re.sub(r"[^A-Za-z0-9_\-]", '_', str(rname))
-        k_wind, k_current = block_env_dynamics_k_gains(block)
-        launch_items.append(
-            Node(
-                package='usv_sim_full',
-                executable='usv_env_dynamics',
-                name=f'usv_env_dynamics_{sanitized}',
-                parameters=[{
-                    'model_name': rname,
-                    'k_wind': k_wind,
-                    'k_current': k_current,
-                }],
-                **quiet_ros_node_kwargs(verbose_s),
-            )
-        )
+    # 创建全局 map 坐标系，当前约定 map 与 odom 重合（零位姿静态变换）
+    map_to_odom_tf_node = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='map_to_odom_tf',
+        arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
+        condition=IfCondition(LaunchConfiguration('use_static_map_odom_tf')),
+        output='screen'
+    )
+    
+    # === 环境动力学节点 ===
+    env_dynamics_node = Node(
+        package='usv_sim_full',
+        executable='usv_env_dynamics',
+        name='usv_env_dynamics_node',
+        output='screen',
+        parameters=[{
+            'model_name': robot_name, # 使用从配置读取的robot_name作为目标模型名
+            'k_wind': 1.5,
+            'k_current': 250.0
+        }]
+    )
+    
+    # 返回所有启动项
+    launch_items = [
+        infra_sim_include,
+        map_to_odom_tf_node,
+        robot_launch,
+        wrapper_node,
+        scenario_manager_node,
+        env_dynamics_node
+    ]
+
+    if launch_rviz:
+        launch_items.insert(2, viz_launch)
 
     if radar_processing_enabled:
-        for idx, ship in enumerate(session_robots):
-            block = ship_blocks[idx] if idx < len(ship_blocks) else {}
-            if not block_has_maritime_radar(block):
-                continue
-            robot_name = ship['name']
-            radar_sensor_name, radar_output_topic = block_first_maritime_radar(block)
-            mapping_input_topic = radar_output_topic
-            if not mapping_input_topic.startswith('/'):
-                mapping_input_topic = '/' + mapping_input_topic
-            if not mapping_input_topic.startswith(f'/{robot_name}/'):
-                mapping_input_topic = f'/{robot_name}{mapping_input_topic}'
-            radar_launch = IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([
-                    get_package_share_directory('gy_radar_driver'),
-                    '/launch/radar_controller.launch.py'
-                ]),
-                launch_arguments={
-                    'namespace': robot_name,
-                    'enable_control': 'false',
-                    'enable_data': 'false',
-                    'enable_arpa': 'false',
-                    'enable_tf': 'false',
-                    'enable_mapping': 'true',
-                    'enable_converter': 'true',
-                    'mapping_input_topic': mapping_input_topic,
-                    'converter_input_topic': mapping_input_topic,
-                    'converter_output_topic': f'/{robot_name}/sensors/radar/nav/points',
-                    'mapping_output_gridmap_topic': f'/{robot_name}/map/navradar/gridmap',
-                    'mapping_output_occupancy_topic': (
-                        f'/{robot_name}/map/navradar/occupancy_grid'
-                    ),
-                    'use_sim_time': 'true'
-                }.items()
-            )
-            launch_items.append(radar_launch)
+        launch_items.append(radar_launch)
 
     return launch_items
+
 
 
 def generate_launch_description():
     pkg_share = get_package_share_directory('usv_sim_full')
     default_config_path = os.path.join(pkg_share, 'config', 'full_config.yaml')
-    default_localization_params = os.path.join(
-        pkg_share, 'config', 'robot_localization_gps.yaml'
-    )
-
+    default_localization_params = os.path.join(pkg_share, 'config', 'robot_localization_gps.yaml')
+    
     return LaunchDescription([
         DeclareLaunchArgument(
             'config_path',
@@ -452,43 +270,22 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'enable_robot_localization',
             default_value='false',
-            description='各船 robot_bringup 是否启用 robot_localization（EKF + navsat）'
+            description='Enable robot_localization (EKF + navsat_transform) for dynamic map->odom'
         ),
         DeclareLaunchArgument(
             'localization_params_file',
             default_value=default_localization_params,
-            description='robot_localization 参数文件路径'
+            description='Path to robot_localization parameter yaml'
         ),
         DeclareLaunchArgument(
             'localization_start_delay',
             default_value='5.0',
-            description='robot_localization 节点启动延时（秒）'
+            description='Delay seconds before starting robot_localization nodes'
         ),
         DeclareLaunchArgument(
             'use_static_map_odom_tf',
             default_value='true',
-            description='发布静态 map->{robot}/odom（与 session RViz Fixed Frame=map 配套；多船各一条）'
-        ),
-        DeclareLaunchArgument(
-            'rviz_config_path_override',
-            default_value='',
-            description=(
-                '非空时：以此 RViz 配置为底稿（复制到临时文件后再追加雷达栅格/前相机显示），'
-                '不再使用 session_manager 生成的 session.rviz。'
-            ),
-        ),
-        DeclareLaunchArgument(
-            'verbose_launch',
-            default_value='false',
-            description=(
-                'true：各节点输出到终端并保留 session_manager/infra 详细 print 与 INFO 日志；'
-                'false（默认）：降噪（桥接/RViz 等写入 ~/.ros/log，RCUTILS 默认 WARN）'
-            ),
-        ),
-        DeclareLaunchArgument(
-            'gz_headless',
-            default_value='false',
-            description='true 时 Gazebo 以 server-only 运行，不启动 GUI 渲染窗口'
+            description='Publish static identity map->odom transform (disable when robot_localization is enabled)'
         ),
         OpaqueFunction(function=launch_setup)
     ])

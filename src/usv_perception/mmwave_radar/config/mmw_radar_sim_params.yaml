@@ -1,0 +1,8 @@
+mmw_radar_sim_publisher:
+  ros__parameters:
+    publish_rate_hz: 15.0
+    raw_pointcloud_topic: "/mmw_radar/raw_pointcloud_topic"
+    raw_object_topic: "/mmw_radar/raw_objectList_topic"
+    target_array_topic: "/perception/radar/mmw/objects"
+    object_marker_topic: "/mmw_radar/object_marker"
+    frame_id: "mmw_radar"

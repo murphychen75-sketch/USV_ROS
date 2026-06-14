@@ -12,11 +12,9 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/usv_sim_full']),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'config'), glob('config/*')),
-        (os.path.join('share', package_name, 'rviz'), glob('rviz/*')),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.py') + ['launch/notes.md']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
         (os.path.join('share', package_name, 'test_env'), glob('test_env/*')),
         (os.path.join('share', package_name, 'launch/components'), glob('launch/components/*.py')),
-        (os.path.join('share', package_name, 'scripts'), glob('scripts/*.sh')),
     ] + [
         (os.path.join('share', package_name, root), [os.path.join(root, f) for f in files])
         for root, dirs, files in os.walk('description')

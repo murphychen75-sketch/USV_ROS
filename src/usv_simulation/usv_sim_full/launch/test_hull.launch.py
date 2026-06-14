@@ -120,7 +120,7 @@ def launch_setup(context, *args, **kwargs):
                     'true' if ship_maritime else 'false'
                 ),
                 'enable_obstacle_spawner': 'true' if idx == 0 else 'false',
-                'create_entity_delay': str(5.0 + float(idx) * 2.0),
+                'spawn_stagger_sec': str(float(idx) * 2.0),
                 'gz_world_name': 'simple_water',
                 'enable_robot_localization': 'false',
                 'localization_params_file': '',
